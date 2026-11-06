@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Town Demon-Subduing Tower · 交付进度看板</title>
+<title>镇妖塔 · 治理控制台</title>
 <style>
   :root{
     --bg:#f5f7fa; --panel:#ffffff; --panel-2:#fafbfc;
@@ -37,12 +37,35 @@
     margin:0; padding:24px; background:var(--bg); color:var(--text);
     font:14px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;
   }
-  .wrap{max-width:1280px;margin:0 auto;}
-  header{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:18px;}
+  .wrap{max-width:1400px;margin:0 auto;}
+  
+  /* G1 顶部栏 */
+  header{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:18px;padding-bottom:16px;border-bottom:1px solid var(--line);}
   h1{margin:0;font-size:20px;font-weight:650;letter-spacing:.2px;}
-  .sub{margin:4px 0 0;color:var(--text-dim);font-size:13px;}
+  .header-right{display:flex;align-items:center;gap:16px;}
   .clock{color:var(--text-mute);font-size:12px;font-variant-numeric:tabular-nums;}
-
+  .token-badge{font-size:12px;padding:4px 10px;border-radius:99px;cursor:pointer;border:1px solid var(--line-strong);background:var(--panel-2);color:var(--text-dim);}
+  .token-badge.configured{background:var(--ok-soft);color:var(--ok);border-color:var(--ok);}
+  
+  /* G2 页签导航 */
+  .tabs{display:flex;gap:4px;margin-bottom:18px;border-bottom:1px solid var(--line);}
+  .tab-btn{padding:10px 20px;background:none;border:none;border-bottom:2px solid transparent;color:var(--text-dim);font-size:14px;font-weight:500;cursor:pointer;transition:.15s;}
+  .tab-btn:hover{color:var(--text);}
+  .tab-btn.active{color:var(--brand);border-bottom-color:var(--brand);}
+  
+  /* G3 全局提示条 */
+  .global-banner{padding:12px 16px;border-radius:var(--radius);margin-bottom:16px;display:none;align-items:center;gap:10px;}
+  .global-banner.show{display:flex;}
+  .global-banner.loading{background:var(--info-soft);color:var(--info);}
+  .global-banner.error{background:var(--danger-soft);color:var(--danger);}
+  .global-banner.warn{background:var(--warn-soft);color:var(--warn);}
+  .global-banner button{margin-left:auto;}
+  
+  /* 页签内容区 */
+  .tab-content{display:none;}
+  .tab-content.active{display:block;}
+  
+  /* A1 汇总卡片区 */
   .cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(158px,1fr));gap:12px;margin-bottom:16px;}
   .card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:14px 16px;box-shadow:var(--shadow);}
   .card .k{color:var(--text-dim);font-size:12px;}
@@ -50,10 +73,12 @@
   .card .v small{font-size:13px;font-weight:500;color:var(--text-mute);margin-left:2px;}
   .card.hero{background:linear-gradient(135deg,var(--brand-soft),var(--panel));border-color:var(--brand);}
   .card.hero .v{color:var(--brand);}
-
+  .card.warn .v{color:var(--warn);}
+  
   .bar-outer{height:6px;border-radius:99px;background:var(--idle-soft);overflow:hidden;margin-top:8px;}
   .bar-inner{height:100%;border-radius:99px;background:var(--brand);transition:width .35s ease;}
-
+  
+  /* A2/B1/B2 工具栏 */
   .toolbar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:12px;}
   .toolbar .spacer{flex:1;}
   button,select,input,textarea{
@@ -68,8 +93,10 @@
   button.link{border:none;background:none;color:var(--brand);padding:2px 6px;}
   button.link.danger{color:var(--danger);}
   button.link:hover{text-decoration:underline;}
-
-  .panel{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow);overflow:hidden;}
+  button:disabled{opacity:.5;cursor:not-allowed;}
+  
+  /* A3/B1/B2/B3/B4 数据表格 */
+  .panel{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow);overflow:hidden;margin-bottom:16px;}
   .table-scroll{overflow-x:auto;}
   table{width:100%;border-collapse:collapse;}
   th,td{padding:11px 14px;text-align:left;border-bottom:1px solid var(--line);vertical-align:middle;}
@@ -78,23 +105,31 @@
   tbody tr:hover{background:var(--panel-2);}
   td.time{font-variant-numeric:tabular-nums;white-space:nowrap;color:var(--text-dim);}
   td.ops{white-space:nowrap;}
+  td.hash{font-family:monospace;font-size:12px;color:var(--text-dim);max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
   .empty{padding:44px 16px;text-align:center;color:var(--text-mute);}
-
+  
+  /* 状态标签 */
   .tag{display:inline-flex;align-items:center;gap:5px;padding:2px 9px;border-radius:99px;font-size:12px;font-weight:560;white-space:nowrap;}
   .tag::before{content:"";width:6px;height:6px;border-radius:99px;background:currentColor;}
-  .tag.NOT_STARTED{color:var(--idle);background:var(--idle-soft);}
-  .tag.IN_PROGRESS{color:var(--info);background:var(--info-soft);}
-  .tag.DELAYED{color:var(--warn);background:var(--warn-soft);}
-  .tag.COMPLETED{color:var(--ok);background:var(--ok-soft);}
+  .tag.NOT_STARTED,.tag.not_started{color:var(--idle);background:var(--idle-soft);}
+  .tag.IN_PROGRESS,.tag.in_progress{color:var(--info);background:var(--info-soft);}
+  .tag.DELAYED,.tag.delayed{color:var(--warn);background:var(--warn-soft);}
+  .tag.COMPLETED,.tag.completed{color:var(--ok);background:var(--ok-soft);}
+  .tag.PENDING,.tag.pending{color:var(--info);background:var(--info-soft);}
+  .tag.APPROVED,.tag.approved{color:var(--ok);background:var(--ok-soft);}
+  .tag.DENIED,.tag.denied,.tag.REJECTED,.tag.rejected{color:var(--danger);background:var(--danger-soft);}
+  .tag.EXPIRED,.tag.expired{color:var(--idle);background:var(--idle-soft);}
   .manual{margin-left:6px;font-size:11px;color:var(--text-mute);border:1px dashed var(--line-strong);border-radius:4px;padding:0 4px;}
-
+  
+  /* 进度条 */
   .prog{display:flex;align-items:center;gap:8px;min-width:112px;}
   .prog .track{flex:1;height:6px;border-radius:99px;background:var(--idle-soft);overflow:hidden;}
   .prog .fill{height:100%;border-radius:99px;background:var(--brand);}
   .prog .fill.done{background:var(--ok);}
   .prog .fill.late{background:var(--warn);}
   .prog .num{width:38px;text-align:right;font-variant-numeric:tabular-nums;font-size:12.5px;color:var(--text-dim);}
-
+  
+  /* 弹窗 */
   .modal-bg{position:fixed;inset:0;background:rgba(16,24,40,.5);display:none;align-items:center;justify-content:center;padding:20px;z-index:50;}
   .modal-bg.open{display:flex;}
   .modal{background:var(--panel);border:1px solid var(--line);border-radius:12px;width:100%;max-width:620px;max-height:92vh;overflow:auto;box-shadow:0 18px 48px rgba(0,0,0,.3);}
@@ -107,8 +142,25 @@
   .field label{font-size:12.5px;color:var(--text-dim);font-weight:560;}
   .field label .req{color:var(--danger);}
   .field .hint{font-size:11.5px;color:var(--text-mute);}
-  .field input,.field select{width:100%;}
-
+  .field input,.field select,.field textarea{width:100%;}
+  .field textarea{min-height:80px;resize:vertical;}
+  .field .error{border-color:var(--danger);}
+  .field .error-msg{color:var(--danger);font-size:12px;margin-top:2px;}
+  
+  /* 抽屉 */
+  .drawer-bg{position:fixed;inset:0;background:rgba(16,24,40,.5);display:none;z-index:40;}
+  .drawer-bg.open{display:block;}
+  .drawer{position:fixed;top:0;right:0;bottom:0;width:480px;max-width:90vw;background:var(--panel);border-left:1px solid var(--line);box-shadow:-4px 0 24px rgba(0,0,0,.15);transform:translateX(100%);transition:transform .25s ease;overflow:auto;z-index:41;}
+  .drawer.open{transform:translateX(0);}
+  .drawer-header{padding:16px 20px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;background:var(--panel);z-index:1;}
+  .drawer-header h3{margin:0;font-size:16px;}
+  .drawer-close{background:none;border:none;font-size:20px;cursor:pointer;color:var(--text-dim);padding:4px 8px;}
+  .drawer-body{padding:20px;}
+  .drawer-field{margin-bottom:14px;}
+  .drawer-field .label{font-size:12px;color:var(--text-dim);margin-bottom:4px;}
+  .drawer-field .value{font-size:14px;word-break:break-all;}
+  
+  /* Toast */
   .toast{position:fixed;right:20px;bottom:20px;z-index:80;display:flex;flex-direction:column;gap:9px;}
   .toast div{
     background:var(--panel);border:1px solid var(--line);border-left:3px solid var(--brand);
@@ -119,68 +171,286 @@
   .toast div.err{border-left-color:var(--danger);}
   .toast div.warn{border-left-color:var(--warn);}
   @keyframes slide{from{opacity:0;transform:translateX(14px);}to{opacity:1;transform:none;}}
-
+  
+  /* B 页签子导航 */
+  .sub-nav{display:flex;gap:4px;margin-bottom:16px;border-bottom:1px solid var(--line);}
+  .sub-nav-btn{padding:8px 16px;background:none;border:none;border-bottom:2px solid transparent;color:var(--text-dim);font-size:13px;cursor:pointer;transition:.15s;}
+  .sub-nav-btn:hover{color:var(--text);}
+  .sub-nav-btn.active{color:var(--brand);border-bottom-color:var(--brand);}
+  .sub-content{display:none;}
+  .sub-content.active{display:block;}
+  
+  /* B0 令牌区 */
+  .token-section{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:16px;margin-bottom:16px;}
+  .token-section h3{margin:0 0 12px;font-size:14px;}
+  .token-input-row{display:flex;gap:8px;align-items:center;}
+  .token-input-row input{flex:1;max-width:300px;}
+  
+  /* B4 统计卡 */
+  .stats-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-bottom:16px;}
+  .stat-card{background:var(--panel-2);border:1px solid var(--line);border-radius:8px;padding:12px;text-align:center;}
+  .stat-card .label{font-size:11px;color:var(--text-mute);margin-bottom:4px;}
+  .stat-card .value{font-size:18px;font-weight:600;}
+  
+  /* 折叠区 */
+  .collapsible{border:1px solid var(--line);border-radius:8px;margin-bottom:10px;}
+  .collapsible-header{padding:10px 14px;background:var(--panel-2);cursor:pointer;display:flex;align-items:center;gap:8px;font-size:13px;}
+  .collapsible-header:hover{background:var(--line);}
+  .collapsible-body{padding:14px;display:none;border-top:1px solid var(--line);}
+  .collapsible.open .collapsible-body{display:block;}
+  .collapsible pre{margin:0;font-size:12px;white-space:pre-wrap;word-break:break-all;max-height:300px;overflow:auto;}
+  
   .note{color:var(--text-mute);font-size:12px;margin-top:10px;}
-  @media (max-width:640px){ .grid{grid-template-columns:1fr;} body{padding:14px;} }
+  .mono{font-family:monospace;}
+  
+  /* 分页 */
+  .pagination{display:flex;align-items:center;justify-content:center;gap:12px;margin-top:16px;}
+  .pagination button{min-width:80px;}
+  .pagination .page-info{font-size:13px;color:var(--text-dim);}
+  
+  @media (max-width:768px){ 
+    .grid{grid-template-columns:1fr;} 
+    body{padding:14px;} 
+    .drawer{width:100%;max-width:100vw;}
+  }
 </style>
 </head>
 <body>
 <div class="wrap">
+  <!-- G1 顶部栏 -->
   <header>
-    <div>
-      <h1>Town Demon-Subduing Tower · 交付进度看板</h1>
-      <p class="sub">本产品各版本里程碑的真实进度：阶段、负责人、计划与实际时间、进度百分比与状态（状态随时间自动推导，逾期即刻显示为「已延期」）</p>
+    <h1>镇妖塔 · 治理控制台</h1>
+    <div class="header-right">
+      <span class="clock" id="clock">—</span>
+      <span class="token-badge" id="token-badge" onclick="openTokenModal()">未配置令牌</span>
     </div>
-    <div class="clock" id="clock">—</div>
   </header>
-
-  <section class="cards" id="cards">
-    <div class="card hero">
-      <div class="k">整体进度</div>
-      <div class="v" id="c-overall">0<small>%</small></div>
-      <div class="bar-outer"><div class="bar-inner" id="c-bar" style="width:0%"></div></div>
-    </div>
-    <div class="card"><div class="k">交付项总数</div><div class="v" id="c-total">0</div></div>
-    <div class="card"><div class="k">完成率</div><div class="v" id="c-ratio">0<small>%</small></div></div>
-    <div class="card"><div class="k">已完成</div><div class="v" id="c-done">0</div></div>
-    <div class="card"><div class="k">进行中</div><div class="v" id="c-doing">0</div></div>
-    <div class="card"><div class="k">已延期</div><div class="v" id="c-late">0</div></div>
-    <div class="card"><div class="k">未开始</div><div class="v" id="c-idle">0</div></div>
-    <div class="card"><div class="k">下一个交付节点</div><div class="v" id="c-next" style="font-size:16px">—</div></div>
-  </section>
-
-  <div class="toolbar">
-    <label for="filter" style="color:var(--text-dim);font-size:13px">状态筛选</label>
-    <select id="filter" style="min-width:150px">
-      <option value="">全部</option>
-    </select>
-    <div class="spacer"></div>
-    <button id="btn-refresh">刷新</button>
-    <button id="btn-new" class="primary">+ 新增交付项</button>
+  
+  <!-- G2 页签导航 -->
+  <div class="tabs">
+    <button class="tab-btn active" onclick="switchTab('A')">交付看板</button>
+    <button class="tab-btn" onclick="switchTab('B')">治理管理</button>
+  </div>
+  
+  <!-- G3 全局提示条 -->
+  <div class="global-banner" id="global-banner">
+    <span id="banner-text"></span>
+    <button id="banner-retry" onclick="retryBanner()" style="display:none">重试</button>
   </div>
 
-  <div class="panel">
-    <div class="table-scroll">
-      <table>
-        <thead>
-          <tr>
-            <th>阶段名称</th><th>负责人</th><th>计划开始</th><th>计划完成</th>
-            <th>实际完成</th><th style="width:150px">当前进度</th><th>状态</th><th>操作</th>
-          </tr>
-        </thead>
-        <tbody id="tbody"></tbody>
-      </table>
+  <!-- ==================== 页签 A：交付看板 ==================== -->
+  <div class="tab-content active" id="tab-a">
+    <!-- A1 汇总卡片区（纯展示） -->
+    <section class="cards" id="cards">
+      <div class="card hero">
+        <div class="k">整体进度</div>
+        <div class="v" id="c-overall">0<small>%</small></div>
+        <div class="bar-outer"><div class="bar-inner" id="c-bar" style="width:0%"></div></div>
+      </div>
+      <div class="card"><div class="k">交付项总数</div><div class="v" id="c-total">0</div></div>
+      <div class="card"><div class="k">完成率</div><div class="v" id="c-ratio">0<small>%</small></div></div>
+      <div class="card"><div class="k">已完成</div><div class="v" id="c-done">0</div></div>
+      <div class="card"><div class="k">进行中</div><div class="v" id="c-doing">0</div></div>
+      <div class="card warn"><div class="k">已延期</div><div class="v" id="c-late">0</div></div>
+      <div class="card"><div class="k">未开始</div><div class="v" id="c-idle">0</div></div>
+      <div class="card"><div class="k">下一个交付节点</div><div class="v" id="c-next" style="font-size:16px">—</div></div>
+    </section>
+
+    <!-- A2 工具栏 -->
+    <div class="toolbar">
+      <label for="filter" style="color:var(--text-dim);font-size:13px">状态筛选</label>
+      <select id="filter" style="min-width:150px" onchange="loadItems()">
+        <option value="">全部</option>
+      </select>
+      <div class="spacer"></div>
+      <button id="btn-refresh" onclick="refreshA()">刷新</button>
+      <button id="btn-new" class="primary" onclick="openItemModal(null)">+ 新增交付项</button>
     </div>
-    <div class="empty" id="empty" style="display:none">当前筛选条件下没有交付项</div>
-    <div class="note" id="note"></div>
+
+    <!-- A3 数据表格 -->
+    <div class="panel">
+      <div class="table-scroll">
+        <table>
+          <thead>
+            <tr>
+              <th>阶段名称</th><th>负责人</th><th>计划开始</th><th>计划完成</th>
+              <th>实际完成</th><th style="width:150px">当前进度</th><th>状态</th><th>操作</th>
+            </tr>
+          </thead>
+          <tbody id="tbody"></tbody>
+        </table>
+      </div>
+      <div class="empty" id="empty" style="display:none">当前筛选条件下没有交付项</div>
+      <!-- A6 列表底部说明 -->
+      <div class="note" id="note"></div>
+    </div>
+  </div>
+
+  <!-- ==================== 页签 B：治理管理 ==================== -->
+  <div class="tab-content" id="tab-b">
+    <!-- B0 令牌与授权态 -->
+    <div id="b-unauthorized" style="display:none">
+      <div class="panel" style="padding:40px;text-align:center;">
+        <p style="font-size:16px;color:var(--text-dim);margin-bottom:16px;">未配置治理令牌</p>
+        <button class="primary" onclick="openTokenModal()">去配置</button>
+      </div>
+    </div>
+    
+    <div id="b-authorized" style="display:none">
+      <!-- B 子导航 -->
+      <div class="sub-nav">
+        <button class="sub-nav-btn active" onclick="switchSubTab('B1')">审批单</button>
+        <button class="sub-nav-btn" onclick="switchSubTab('B2')">计划单</button>
+        <button class="sub-nav-btn" onclick="switchSubTab('B3')">审计</button>
+        <button class="sub-nav-btn" onclick="switchSubTab('B4')">同步暂存</button>
+      </div>
+
+      <!-- ========== B1 审批单区 ========== -->
+      <div class="sub-content active" id="sub-b1">
+        <div class="toolbar">
+          <label style="color:var(--text-dim);font-size:13px">状态筛选</label>
+          <select id="b1-status" style="min-width:120px" onchange="loadApprovals()">
+            <option value="">全部</option>
+            <option value="PENDING">待审批</option>
+            <option value="APPROVED">已批准</option>
+            <option value="DENIED">已驳回</option>
+            <option value="EXPIRED">已过期</option>
+          </select>
+          <div class="spacer"></div>
+          <button onclick="loadApprovals()">刷新</button>
+        </div>
+        <div class="panel">
+          <div class="table-scroll">
+            <table>
+              <thead>
+                <tr>
+                  <th>ID</th><th>任务号</th><th>工具</th><th>风险等级</th>
+                  <th>申请人</th><th>状态</th><th>创建时间</th><th>截止时间</th>
+                  <th>审批人</th><th>操作</th>
+                </tr>
+              </thead>
+              <tbody id="b1-tbody"></tbody>
+            </table>
+          </div>
+          <div class="empty" id="b1-empty" style="display:none">暂无审批单</div>
+        </div>
+      </div>
+
+      <!-- ========== B2 计划单区 ========== -->
+      <div class="sub-content" id="sub-b2">
+        <div class="toolbar">
+          <label style="color:var(--text-dim);font-size:13px">状态</label>
+          <select id="b2-status" style="min-width:100px">
+            <option value="">全部</option>
+            <option value="PENDING">待审批</option>
+            <option value="APPROVED">已批准</option>
+            <option value="REJECTED">已否决</option>
+          </select>
+          <label style="color:var(--text-dim);font-size:13px;margin-left:8px">Agent</label>
+          <input id="b2-agent" style="width:120px" placeholder="agentId">
+          <label style="color:var(--text-dim);font-size:13px;margin-left:8px">任务</label>
+          <input id="b2-task" style="width:120px" placeholder="taskId">
+          <button onclick="loadPlans()">查询</button>
+          <button onclick="resetPlans()">重置</button>
+        </div>
+        <div class="panel">
+          <div class="table-scroll">
+            <table>
+              <thead>
+                <tr>
+                  <th>ID</th><th>Agent</th><th>任务号</th><th>状态</th>
+                  <th>摘要</th><th>提交时间</th><th>决策时间</th><th>决策人</th><th>操作</th>
+                </tr>
+              </thead>
+              <tbody id="b2-tbody"></tbody>
+            </table>
+          </div>
+          <div class="empty" id="b2-empty" style="display:none">暂无计划单</div>
+        </div>
+      </div>
+
+      <!-- ========== B3 审计区 ========== -->
+      <div class="sub-content" id="sub-b3">
+        <div class="toolbar">
+          <label style="color:var(--text-dim);font-size:13px">动作</label>
+          <input id="b3-action" style="width:120px" placeholder="ACTION">
+          <label style="color:var(--text-dim);font-size:13px;margin-left:8px">搜索</label>
+          <input id="b3-q" style="width:160px" placeholder="关键字">
+          <label style="color:var(--text-dim);font-size:13px;margin-left:8px">条数</label>
+          <input id="b3-limit" type="number" style="width:70px" value="100" min="1" max="500">
+          <button onclick="loadAudit()">查询</button>
+          <button onclick="resetAudit()">重置</button>
+          <div class="spacer"></div>
+          <button onclick="verifyAudit()">校验链</button>
+        </div>
+        <div class="panel">
+          <div class="table-scroll">
+            <table>
+              <thead>
+                <tr>
+                  <th>序号</th><th>动作</th><th>哈希</th><th>内容</th>
+                </tr>
+              </thead>
+              <tbody id="b3-tbody"></tbody>
+            </table>
+          </div>
+          <div class="empty" id="b3-empty" style="display:none">无匹配记录</div>
+          <!-- B3 分页 -->
+          <div class="pagination">
+            <button id="b3-prev" onclick="auditPrev()" disabled>上一页</button>
+            <span class="page-info" id="b3-page-info">第 1 页</span>
+            <button id="b3-next" onclick="auditNext()">下一页</button>
+          </div>
+        </div>
+        <!-- B3 校验结果 -->
+        <div class="panel" id="b3-verify" style="display:none;padding:16px;">
+          <div id="b3-verify-content"></div>
+        </div>
+      </div>
+
+      <!-- ========== B4 同步暂存区 ========== -->
+      <div class="sub-content" id="sub-b4">
+        <div class="toolbar">
+          <button onclick="loadSpool()">刷新概览</button>
+          <button onclick="loadSpoolDead()">查看死信</button>
+          <div class="spacer"></div>
+          <button onclick="spoolRetry()">立即补传</button>
+          <button onclick="spoolCleanup()">立即清理</button>
+        </div>
+        <!-- B4 统计卡 -->
+        <div class="stats-grid" id="b4-stats"></div>
+        <!-- B4 概览信息 -->
+        <div class="panel" style="padding:16px;margin-bottom:16px;">
+          <div class="drawer-field">
+            <div class="label">暂存目录</div>
+            <div class="value mono" id="b4-dir">—</div>
+          </div>
+        </div>
+        <!-- B4 记录表 -->
+        <div class="panel">
+          <div class="table-scroll">
+            <table>
+              <thead id="b4-thead">
+                <tr>
+                  <th>文件名</th><th>副本</th><th>尝试次数</th><th>创建时间</th><th>最近错误</th><th>快照</th>
+                </tr>
+              </thead>
+              <tbody id="b4-tbody"></tbody>
+            </table>
+          </div>
+          <div class="empty" id="b4-empty" style="display:none">暂无数据</div>
+        </div>
+      </div>
+    </div>
   </div>
 </div>
 
-<div class="modal-bg" id="modal-bg">
+<!-- A5 新增/编辑弹窗 -->
+<div class="modal-bg" id="item-modal">
   <div class="modal">
-    <h2 id="modal-title">新增交付项</h2>
+    <h2 id="item-modal-title">新增交付项</h2>
     <div class="body">
-      <form id="form" onsubmit="return false;">
+      <form id="item-form" onsubmit="return false;">
         <div class="grid">
           <div class="field full">
             <label for="f-phase">交付阶段名称 <span class="req">*</span></label>
@@ -216,8 +486,91 @@
       </form>
     </div>
     <div class="foot">
-      <button id="btn-cancel">取消</button>
-      <button id="btn-save" class="primary">保存</button>
+      <button onclick="closeItemModal()">取消</button>
+      <button id="btn-save" class="primary" onclick="saveItem()">保存</button>
+    </div>
+  </div>
+</div>
+
+<!-- B1 审批单详情抽屉 -->
+<div class="drawer-bg" id="b1-drawer-bg" onclick="closeB1Drawer()"></div>
+<div class="drawer" id="b1-drawer">
+  <div class="drawer-header">
+    <h3>审批单详情</h3>
+    <button class="drawer-close" onclick="closeB1Drawer()">×</button>
+  </div>
+  <div class="drawer-body" id="b1-drawer-body"></div>
+</div>
+
+<!-- B1 批准/驳回弹窗 -->
+<div class="modal-bg" id="b1-action-modal">
+  <div class="modal">
+    <h2 id="b1-action-title">审批操作</h2>
+    <div class="body">
+      <div class="field" style="margin-bottom:14px;">
+        <label for="b1-approver">审批人 <span class="req">*</span></label>
+        <input id="b1-approver" placeholder="请输入审批人">
+      </div>
+      <div class="field">
+        <label for="b1-comment">审批意见</label>
+        <textarea id="b1-comment" placeholder="请输入审批意见（可选）"></textarea>
+      </div>
+      <div id="b1-action-error" style="color:var(--danger);margin-top:10px;display:none;"></div>
+    </div>
+    <div class="foot">
+      <button onclick="closeB1ActionModal()">取消</button>
+      <button id="b1-action-submit" class="primary" onclick="submitB1Action()">提交</button>
+    </div>
+  </div>
+</div>
+
+<!-- B2 计划单详情抽屉 -->
+<div class="drawer-bg" id="b2-drawer-bg" onclick="closeB2Drawer()"></div>
+<div class="drawer" id="b2-drawer">
+  <div class="drawer-header">
+    <h3>计划单详情</h3>
+    <button class="drawer-close" onclick="closeB2Drawer()">×</button>
+  </div>
+  <div class="drawer-body" id="b2-drawer-body"></div>
+</div>
+
+<!-- B2 批准/否决弹窗 -->
+<div class="modal-bg" id="b2-action-modal">
+  <div class="modal">
+    <h2 id="b2-action-title">审批操作</h2>
+    <div class="body">
+      <div class="field" style="margin-bottom:14px;">
+        <label for="b2-approver">决策人 <span class="req">*</span></label>
+        <input id="b2-approver" placeholder="请输入决策人">
+      </div>
+      <div class="field">
+        <label for="b2-note">决策备注</label>
+        <textarea id="b2-note" placeholder="请输入决策备注（可选）"></textarea>
+      </div>
+      <div id="b2-action-error" style="color:var(--danger);margin-top:10px;display:none;"></div>
+    </div>
+    <div class="foot">
+      <button onclick="closeB2ActionModal()">取消</button>
+      <button id="b2-action-submit" class="primary" onclick="submitB2Action()">提交</button>
+    </div>
+  </div>
+</div>
+
+<!-- G4 令牌弹层 -->
+<div class="modal-bg" id="token-modal">
+  <div class="modal" style="max-width:400px;">
+    <h2>配置治理令牌</h2>
+    <div class="body">
+      <div class="field">
+        <label for="token-input">治理令牌</label>
+        <input id="token-input" type="password" placeholder="请输入治理令牌">
+        <span class="hint">令牌仅存储于当前会话，关闭页面后清除</span>
+      </div>
+    </div>
+    <div class="foot">
+      <button onclick="clearToken()">清除</button>
+      <button onclick="closeTokenModal()">取消</button>
+      <button class="primary" onclick="saveToken()">保存</button>
     </div>
   </div>
 </div>
@@ -227,12 +580,31 @@
 <script>
 (function(){
   "use strict";
-  var API = "/api/delivery";
+  
+  // ========== 全局状态 ==========
+  var API_DELIVERY = "/api/delivery";
+  var API_ADMIN = "/towndemontower/admin";
+  var currentTab = "A";
+  var currentSubTab = "B1";
   var editingId = null;
   var STATUS = [];
+  var tokenConfigured = false;
+  
+  // B3 审计分页状态
+  var auditOffset = 0;
+  var auditLimit = 100;
+  var auditTotal = 0;
+  
+  // B1/B2 当前操作
+  var b1CurrentId = null;
+  var b1CurrentAction = null; // approve or deny
+  var b2CurrentId = null;
+  var b2CurrentAction = null; // approve or reject
+  var b4ViewMode = "pending"; // pending or dead
 
+  // ========== 工具函数 ==========
   function $(id){ return document.getElementById(id); }
-
+  
   function toast(msg, kind){
     var box = $("toast");
     var d = document.createElement("div");
@@ -245,17 +617,37 @@
       setTimeout(function(){ if(d.parentNode) d.parentNode.removeChild(d); }, 320);
     }, 3200);
   }
-
+  
+  function showBanner(text, type, showRetry){
+    var banner = $("global-banner");
+    banner.className = "global-banner show " + type;
+    $("banner-text").textContent = text;
+    $("banner-retry").style.display = showRetry ? "inline-block" : "none";
+  }
+  
+  function hideBanner(){
+    $("global-banner").className = "global-banner";
+  }
+  
   function fmt(dt){
     if(!dt) return "—";
     return String(dt).replace("T"," ").slice(0,19);
   }
-
+  
   function fmtShort(dt){
     if(!dt) return "—";
     return String(dt).replace("T"," ").slice(0,16);
   }
-
+  
+  function formatBytes(bytes){
+    if(bytes === 0) return "0 B";
+    if(!bytes) return "—";
+    var k = 1024;
+    var sizes = ["B", "KB", "MB", "GB"];
+    var i = Math.floor(Math.log(bytes) / Math.log(k));
+    return (bytes / Math.pow(k, i)).toFixed(1) + " " + sizes[i];
+  }
+  
   function req(url, opt){
     return fetch(url, opt).then(function(res){
       return res.text().then(function(txt){
@@ -263,53 +655,147 @@
         try { data = txt ? JSON.parse(txt) : null; } catch(e){ data = { message: txt }; }
         if(!res.ok){
           var err = new Error((data && data.message) || ("HTTP " + res.status));
-          err.status = res.status; err.data = data;
+          err.status = res.status; 
+          err.data = data;
+          err.code = data && data.code;
+          err.error = data && data.error;
           throw err;
         }
         return data;
       });
     });
   }
+  
+  function adminReq(url, opt){
+    var token = sessionStorage.getItem("twd.adminToken");
+    opt = opt || {};
+    opt.headers = opt.headers || {};
+    opt.headers["X-Governance-Token"] = token || "";
+    return req(API_ADMIN + url, opt);
+  }
 
-  /* ---------- 元数据与筛选器 ---------- */
+  // ========== G2 页签切换 ==========
+  window.switchTab = function(tab){
+    currentTab = tab;
+    document.querySelectorAll(".tab-btn").forEach(function(btn, i){
+      btn.classList.toggle("active", (i === 0 && tab === "A") || (i === 1 && tab === "B"));
+    });
+    document.querySelectorAll(".tab-content").forEach(function(content){
+      content.classList.toggle("active", content.id === "tab-" + tab.toLowerCase());
+    });
+    if(tab === "B"){
+      updateBAuthState();
+    }
+  };
+  
+  window.switchSubTab = function(sub){
+    currentSubTab = sub;
+    document.querySelectorAll(".sub-nav-btn").forEach(function(btn, i){
+      var subs = ["B1","B2","B3","B4"];
+      btn.classList.toggle("active", subs[i] === sub);
+    });
+    document.querySelectorAll(".sub-content").forEach(function(content){
+      content.classList.toggle("active", content.id === "sub-" + sub.toLowerCase());
+    });
+  };
+
+  // ========== G4 令牌管理 ==========
+  window.openTokenModal = function(){
+    $("token-input").value = "";
+    $("token-modal").classList.add("open");
+  };
+  
+  window.closeTokenModal = function(){
+    $("token-modal").classList.remove("open");
+  };
+  
+  window.saveToken = function(){
+    var token = $("token-input").value.trim();
+    if(token){
+      sessionStorage.setItem("twd.adminToken", token);
+      tokenConfigured = true;
+      updateTokenBadge();
+      updateBAuthState();
+      toast("令牌已保存", "ok");
+    }
+    closeTokenModal();
+  };
+  
+  window.clearToken = function(){
+    sessionStorage.removeItem("twd.adminToken");
+    tokenConfigured = false;
+    updateTokenBadge();
+    updateBAuthState();
+    toast("令牌已清除", "ok");
+    closeTokenModal();
+  };
+  
+  function updateTokenBadge(){
+    var badge = $("token-badge");
+    tokenConfigured = !!sessionStorage.getItem("twd.adminToken");
+    if(tokenConfigured){
+      badge.textContent = "已配置";
+      badge.classList.add("configured");
+    } else {
+      badge.textContent = "未配置令牌";
+      badge.classList.remove("configured");
+    }
+  }
+  
+  function updateBAuthState(){
+    var unauthorized = $("b-unauthorized");
+    var authorized = $("b-authorized");
+    if(!tokenConfigured){
+      unauthorized.style.display = "block";
+      authorized.style.display = "none";
+    } else {
+      unauthorized.style.display = "none";
+      authorized.style.display = "block";
+    }
+  }
+
+  // ========== A 页签：交付看板 ==========
+  // A1 加载汇总
+  function loadSummary(){
+    return req(API_DELIVERY + "/summary").then(function(s){
+      $("c-overall").innerHTML = (s.overallProgressPercent || 0) + "<small>%</small>";
+      $("c-bar").style.width = (s.overallProgressPercent || 0) + "%";
+      $("c-total").textContent = s.totalCount || 0;
+      $("c-ratio").innerHTML = (s.completedRatioPercent || 0) + "<small>%</small>";
+      $("c-done").textContent = s.completedCount || 0;
+      $("c-doing").textContent = s.inProgressCount || 0;
+      $("c-late").textContent = s.delayedCount || 0;
+      $("c-idle").textContent = s.notStartedCount || 0;
+      $("c-next").textContent = s.nextUpcomingPlannedEnd ? fmtShort(s.nextUpcomingPlannedEnd) : "—";
+    });
+  }
+  
+  // A2 加载元数据
   function loadMeta(){
-    return req(API + "/meta").then(function(m){
+    return req(API_DELIVERY + "/meta").then(function(m){
       STATUS = m.statuses || [];
       var sel = $("filter");
+      sel.innerHTML = '<option value="">全部</option>';
       STATUS.forEach(function(s){
         var o = document.createElement("option");
-        o.value = s.code; o.textContent = s.label;
+        o.value = s.code; 
+        o.textContent = s.label;
         sel.appendChild(o);
       });
       $("clock").textContent = "服务器时间 " + fmt(m.now);
     });
   }
-
-  /* ---------- 汇总卡片 ---------- */
-  function loadSummary(){
-    return req(API + "/summary").then(function(s){
-      $("c-overall").innerHTML = s.overallProgressPercent + "<small>%</small>";
-      $("c-bar").style.width = s.overallProgressPercent + "%";
-      $("c-total").textContent = s.totalCount;
-      $("c-ratio").innerHTML = s.completedRatioPercent + "<small>%</small>";
-      $("c-done").textContent = s.completedCount;
-      $("c-doing").textContent = s.inProgressCount;
-      $("c-late").textContent = s.delayedCount;
-      $("c-idle").textContent = s.notStartedCount;
-      $("c-next").textContent = s.nextUpcomingPlannedEnd ? fmtShort(s.nextUpcomingPlannedEnd) : "—";
-    });
-  }
-
-  /* ---------- 列表 ---------- */
-  function loadItems(){
+  
+  // A3 加载列表
+  window.loadItems = function(){
     var f = $("filter").value;
-    var url = API + "/items" + (f ? ("?status=" + encodeURIComponent(f)) : "");
+    var url = API_DELIVERY + "/items" + (f ? ("?status=" + encodeURIComponent(f)) : "");
     return req(url).then(function(items){
-      render(items);
+      renderItems(items || []);
     });
-  }
-
-  function render(items){
+  };
+  
+  function renderItems(items){
     var tb = $("tbody");
     tb.innerHTML = "";
     $("empty").style.display = items.length ? "none" : "block";
@@ -319,49 +805,62 @@
       var td1 = document.createElement("td");
       var strong = document.createElement("div");
       strong.style.fontWeight = "560";
-      strong.textContent = it.phaseName;
+      strong.textContent = it.phaseName || "—";
       td1.appendChild(strong);
       var idLine = document.createElement("div");
       idLine.style.cssText = "font-size:11.5px;color:var(--text-mute);font-variant-numeric:tabular-nums";
-      idLine.textContent = it.id;
+      idLine.textContent = it.id || "";
       td1.appendChild(idLine);
       tr.appendChild(td1);
 
-      tr.appendChild(td(it.owner));
-
-      var tds = document.createElement("td"); tds.className = "time"; tds.textContent = fmt(it.plannedStart); tr.appendChild(tds);
-      var tde = document.createElement("td"); tde.className = "time"; tde.textContent = fmt(it.plannedEnd); tr.appendChild(tde);
-      var tda = document.createElement("td"); tda.className = "time"; tda.textContent = fmt(it.actualEnd); tr.appendChild(tda);
+      tr.appendChild(createTd(it.owner));
+      tr.appendChild(createTd(fmt(it.plannedStart), "time"));
+      tr.appendChild(createTd(fmt(it.plannedEnd), "time"));
+      tr.appendChild(createTd(fmt(it.actualEnd), "time"));
 
       var tdProg = document.createElement("td");
-      var wrap = document.createElement("div"); wrap.className = "prog";
-      var track = document.createElement("div"); track.className = "track";
+      var wrap = document.createElement("div"); 
+      wrap.className = "prog";
+      var track = document.createElement("div"); 
+      track.className = "track";
       var fill = document.createElement("div");
       fill.className = "fill" + (it.status === "COMPLETED" ? " done" : (it.status === "DELAYED" ? " late" : ""));
-      fill.style.width = Math.max(0, Math.min(100, it.progressPercent)) + "%";
+      fill.style.width = Math.max(0, Math.min(100, it.progressPercent || 0)) + "%";
       track.appendChild(fill);
-      var num = document.createElement("span"); num.className = "num"; num.textContent = it.progressPercent + "%";
-      wrap.appendChild(track); wrap.appendChild(num);
+      var num = document.createElement("span"); 
+      num.className = "num"; 
+      num.textContent = (it.progressPercent || 0) + "%";
+      wrap.appendChild(track); 
+      wrap.appendChild(num);
       tdProg.appendChild(wrap);
       tr.appendChild(tdProg);
 
       var tdSt = document.createElement("td");
       var tag = document.createElement("span");
-      tag.className = "tag " + it.status;
-      tag.textContent = it.statusLabel;
+      tag.className = "tag " + (it.status || "");
+      tag.textContent = it.statusLabel || it.status || "—";
       tdSt.appendChild(tag);
       if(it.manualStatus){
-        var m = document.createElement("span"); m.className = "manual"; m.textContent = "人工";
+        var m = document.createElement("span"); 
+        m.className = "manual"; 
+        m.textContent = "人工";
         tdSt.appendChild(m);
       }
       tr.appendChild(tdSt);
 
-      var tdOps = document.createElement("td"); tdOps.className = "ops";
-      var bEdit = document.createElement("button"); bEdit.className = "link"; bEdit.textContent = "编辑";
-      bEdit.onclick = function(){ openModal(it); };
-      var bDel = document.createElement("button"); bDel.className = "link danger"; bDel.textContent = "删除";
+      var tdOps = document.createElement("td"); 
+      tdOps.className = "ops";
+      var bEdit = document.createElement("button"); 
+      bEdit.className = "link"; 
+      bEdit.textContent = "编辑";
+      bEdit.onclick = function(){ openItemModal(it); };
+      var bDel = document.createElement("button"); 
+      bDel.className = "link danger"; 
+      bDel.textContent = "删除";
       bDel.onclick = function(){ removeItem(it); };
-      tdOps.appendChild(bEdit); tdOps.appendChild(document.createTextNode(" ")); tdOps.appendChild(bDel);
+      tdOps.appendChild(bEdit); 
+      tdOps.appendChild(document.createTextNode(" ")); 
+      tdOps.appendChild(bDel);
       tr.appendChild(tdOps);
 
       tb.appendChild(tr);
@@ -370,49 +869,47 @@
       ? ("共 " + items.length + " 条，按计划完成时间升序排列。状态由计划时间与进度自动推导，逾期即刻显示为「已延期」。")
       : "";
   }
-
-  function td(text){
-    var d = document.createElement("td");
-    d.textContent = (text === null || text === undefined || text === "") ? "—" : text;
-    return d;
+  
+  function createTd(text, cls){
+    var td = document.createElement("td");
+    td.textContent = (text === null || text === undefined || text === "") ? "—" : text;
+    if(cls) td.className = cls;
+    return td;
   }
 
-  /* ---------- 表单 ---------- */
-  function toLocalInput(v){
-    if(!v) return "";
-    return String(v).replace("T"," ").slice(0,19);
-  }
-  function fromLocalInput(v){
-    if(!v) return null;
-    return v.replace(" ","T");
-  }
-
-  function openModal(item){
+  // A5 弹窗
+  window.openItemModal = function(item){
     editingId = item ? item.id : null;
-    $("modal-title").textContent = item ? ("编辑交付项 · " + item.id) : "新增交付项";
-    // 状态选项：编辑时若已有人工覆盖，额外提供"恢复自动推导"
+    $("item-modal-title").textContent = item ? ("编辑交付项 · " + item.id) : "新增交付项";
+    
     var fs = $("f-status");
     fs.innerHTML = "";
     var auto = document.createElement("option");
-    auto.value = ""; auto.textContent = "自动推导";
+    auto.value = ""; 
+    auto.textContent = "自动推导";
     fs.appendChild(auto);
+    
     if(item && item.manualStatus){
       var back = document.createElement("option");
-      back.value = "AUTO"; back.textContent = "恢复自动推导（清除人工指定）";
+      back.value = "AUTO"; 
+      back.textContent = "恢复自动推导（清除人工指定）";
       fs.appendChild(back);
       $("f-status-hint").textContent = "当前已人工指定状态，选择「恢复自动推导」可清除";
     } else {
       $("f-status-hint").textContent = "留空则由计划时间与进度自动推导";
     }
+    
     STATUS.forEach(function(s){
       var o = document.createElement("option");
-      o.value = s.code; o.textContent = s.label;
+      o.value = s.code; 
+      o.textContent = s.label;
       fs.appendChild(o);
     });
+    
     if(item){
       $("f-phase").value = item.phaseName || "";
       $("f-owner").value = item.owner || "";
-      $("f-progress").value = item.progressPercent;
+      $("f-progress").value = item.progressPercent || 0;
       $("f-start").value = toLocalInput(item.plannedStart);
       $("f-end").value = toLocalInput(item.plannedEnd);
       $("f-actual").value = toLocalInput(item.actualEnd);
@@ -426,83 +923,751 @@
       $("f-actual").value = "";
       $("f-status").value = "";
     }
-    $("modal-bg").classList.add("open");
-  }
-
-  function closeModal(){
-    $("modal-bg").classList.remove("open");
+    $("item-modal").classList.add("open");
+  };
+  
+  window.closeItemModal = function(){
+    $("item-modal").classList.remove("open");
     editingId = null;
+  };
+  
+  function toLocalInput(v){
+    if(!v) return "";
+    return String(v).replace("T"," ").slice(0,19);
   }
-
-  function collect(){
-    var progress = parseInt($("f-progress").value, 10);
-    if(isNaN(progress)) progress = 0;
-    return {
+  
+  function fromLocalInput(v){
+    if(!v) return null;
+    return v.replace(" ","T");
+  }
+  
+  window.saveItem = function(){
+    var body = {
       phaseName: $("f-phase").value.trim(),
       owner: $("f-owner").value.trim(),
       plannedStart: fromLocalInput($("f-start").value),
       plannedEnd: fromLocalInput($("f-end").value),
       actualEnd: fromLocalInput($("f-actual").value),
-      progressPercent: progress,
+      progressPercent: parseInt($("f-progress").value, 10) || 0,
       status: $("f-status").value
     };
-  }
-
-  function save(){
-    var body = collect();
+    
     if(!body.phaseName){ toast("请填写交付阶段名称", "err"); return; }
     if(!body.owner){ toast("请填写负责人", "err"); return; }
     if(!body.plannedStart || !body.plannedEnd){ toast("请填写计划开始与完成时间", "err"); return; }
     if(body.plannedEnd < body.plannedStart){ toast("计划完成时间不能早于计划开始时间", "err"); return; }
     if(body.progressPercent < 0 || body.progressPercent > 100){ toast("进度百分比需在 0~100 之间", "err"); return; }
 
-    var opt = { method: editingId ? "PUT" : "POST",
-                headers: {"Content-Type":"application/json"},
-                body: JSON.stringify(body) };
-    var url = editingId ? (API + "/items/" + encodeURIComponent(editingId)) : (API + "/items");
+    var opt = { 
+      method: editingId ? "PUT" : "POST",
+      headers: {"Content-Type":"application/json"},
+      body: JSON.stringify(body) 
+    };
+    var url = editingId ? (API_DELIVERY + "/items/" + encodeURIComponent(editingId)) : (API_DELIVERY + "/items");
 
     $("btn-save").disabled = true;
-    req(url, opt).then(function(){
-      closeModal();
+    req(url, opt).then(function(res){
+      closeItemModal();
       toast(editingId ? "已更新交付项" : "已新增交付项", "ok");
-      return refresh();
+      return refreshA();
     }).catch(function(e){
       if(e.status === 202){
-        closeModal();
-        toast(e.message || "操作已提交审批", "warn");
+        closeItemModal();
+        var ticketId = e.data && e.data.approvalTicketId;
+        toast("已提交审批" + (ticketId ? ("：" + ticketId) : ""), "warn");
+      } else if(e.status === 400){
+        toast(e.message || "参数错误", "err");
+      } else if(e.status === 404){
+        toast(e.message || "未找到", "err");
+        closeItemModal();
+        loadItems();
       } else {
         toast(e.message || "保存失败", "err");
       }
-    }).finally(function(){ $("btn-save").disabled = false; });
-  }
-
-  function removeItem(it){
-    if(!confirm("确认删除交付项「" + it.phaseName + "」？")) return;
-    req(API + "/items/" + encodeURIComponent(it.id), { method:"DELETE" }).then(function(){
-      toast("已删除交付项 " + it.id, "ok");
-      return refresh();
+    }).finally(function(){ 
+      $("btn-save").disabled = false; 
+    });
+  };
+  
+  window.removeItem = function(it){
+    if(!confirm("确认删除交付项「" + (it.phaseName || it.id) + "」？")) return;
+    req(API_DELIVERY + "/items/" + encodeURIComponent(it.id), { method:"DELETE" }).then(function(res){
+      if(res && res.deleted){
+        toast("已删除交付项 " + it.id, "ok");
+        return refreshA();
+      }
     }).catch(function(e){
-      if(e.status === 202){ toast(e.message || "删除已提交审批", "warn"); }
-      else { toast(e.message || "删除失败", "err"); }
+      if(e.status === 202){ 
+        toast(e.message || "删除已提交审批", "warn"); 
+      } else { 
+        toast(e.message || "删除失败", "err"); 
+      }
+    });
+  };
+  
+  window.refreshA = function(){
+    $("btn-refresh").disabled = true;
+    return Promise.all([loadSummary(), loadItems()])
+      .then(function(){ toast("已刷新", "ok"); })
+      .catch(function(e){ toast("刷新失败：" + e.message, "err"); })
+      .finally(function(){ $("btn-refresh").disabled = false; });
+  };
+
+  // ========== B1 审批单 ==========
+  window.loadApprovals = function(){
+    var status = $("b1-status").value;
+    var url = "/approvals" + (status ? ("?status=" + encodeURIComponent(status)) : "");
+    adminReq(url).then(function(res){
+      var items = res && res.items || [];
+      renderB1(items);
+    }).catch(function(e){
+      handleAdminError(e, "b1");
+    });
+  };
+  
+  function renderB1(items){
+    var tb = $("b1-tbody");
+    tb.innerHTML = "";
+    $("b1-empty").style.display = items.length ? "none" : "block";
+    items.forEach(function(it){
+      var tr = document.createElement("tr");
+      tr.style.cursor = "pointer";
+      tr.onclick = function(){ openB1Drawer(it); };
+      
+      tr.appendChild(createTd(it.id));
+      tr.appendChild(createTd(it.taskId));
+      tr.appendChild(createTd(it.tool));
+      tr.appendChild(createTd(it.riskLevel));
+      tr.appendChild(createTd(it.requestedBy));
+      
+      var tdSt = document.createElement("td");
+      var tag = document.createElement("span");
+      tag.className = "tag " + (it.status || "");
+      tag.textContent = it.status || "—";
+      tdSt.appendChild(tag);
+      tr.appendChild(tdSt);
+      
+      tr.appendChild(createTd(fmt(it.createdAt), "time"));
+      tr.appendChild(createTd(fmt(it.deadline), "time"));
+      tr.appendChild(createTd(it.approver));
+      
+      var tdOps = document.createElement("td");
+      tdOps.className = "ops";
+      tdOps.onclick = function(e){ e.stopPropagation(); };
+      
+      var btnDetail = document.createElement("button");
+      btnDetail.className = "link";
+      btnDetail.textContent = "详情";
+      btnDetail.onclick = function(){ openB1Drawer(it); };
+      tdOps.appendChild(btnDetail);
+      
+      if(it.status === "PENDING"){
+        var btnApprove = document.createElement("button");
+        btnApprove.className = "link";
+        btnApprove.textContent = "批准";
+        btnApprove.onclick = function(){ openB1ActionModal(it.id, "approve"); };
+        tdOps.appendChild(btnApprove);
+        
+        var btnDeny = document.createElement("button");
+        btnDeny.className = "link danger";
+        btnDeny.textContent = "驳回";
+        btnDeny.onclick = function(){ openB1ActionModal(it.id, "deny"); };
+        tdOps.appendChild(btnDeny);
+      }
+      
+      tr.appendChild(tdOps);
+      tb.appendChild(tr);
     });
   }
-
-  function refresh(){
-    return Promise.all([loadSummary(), loadItems()]);
+  
+  function openB1Drawer(item){
+    var body = $("b1-drawer-body");
+    body.innerHTML = "";
+    var fields = [
+      {label: "审批单号", value: item.id},
+      {label: "任务号", value: item.taskId},
+      {label: "工具", value: item.tool},
+      {label: "风险等级", value: item.riskLevel},
+      {label: "影响说明", value: item.impactNote},
+      {label: "回滚方案", value: item.rollbackPlan},
+      {label: "申请人", value: item.requestedBy},
+      {label: "状态", value: item.status},
+      {label: "创建时间", value: fmt(item.createdAt)},
+      {label: "截止时间", value: fmt(item.deadline)},
+      {label: "审批人", value: item.approver},
+      {label: "审批意见", value: item.comment},
+      {label: "决策时间", value: fmt(item.decidedAt)}
+    ];
+    fields.forEach(function(f){
+      var div = document.createElement("div");
+      div.className = "drawer-field";
+      div.innerHTML = '<div class="label">' + f.label + '</div><div class="value">' + (f.value || "—") + '</div>';
+      body.appendChild(div);
+    });
+    $("b1-drawer-bg").classList.add("open");
+    $("b1-drawer").classList.add("open");
   }
+  
+  window.closeB1Drawer = function(){
+    $("b1-drawer-bg").classList.remove("open");
+    $("b1-drawer").classList.remove("open");
+  };
+  
+  window.openB1ActionModal = function(id, action){
+    b1CurrentId = id;
+    b1CurrentAction = action;
+    $("b1-action-title").textContent = action === "approve" ? "批准审批单" : "驳回审批单";
+    $("b1-approver").value = "";
+    $("b1-comment").value = "";
+    $("b1-action-error").style.display = "none";
+    $("b1-action-modal").classList.add("open");
+  };
+  
+  window.closeB1ActionModal = function(){
+    $("b1-action-modal").classList.remove("open");
+    b1CurrentId = null;
+    b1CurrentAction = null;
+  };
+  
+  window.submitB1Action = function(){
+    var approver = $("b1-approver").value.trim();
+    var comment = $("b1-comment").value.trim();
+    
+    if(!approver){
+      $("b1-action-error").textContent = "审批人不能为空";
+      $("b1-action-error").style.display = "block";
+      return;
+    }
+    
+    var url = "/approvals/" + encodeURIComponent(b1CurrentId) + "/" + b1CurrentAction;
+    var body = { approver: approver, comment: comment };
+    
+    $("b1-action-submit").disabled = true;
+    adminReq(url, {
+      method: "POST",
+      headers: {"Content-Type":"application/json"},
+      body: JSON.stringify(body)
+    }).then(function(res){
+      closeB1ActionModal();
+      closeB1Drawer();
+      toast(b1CurrentAction === "approve" ? "已批准" : "已驳回", "ok");
+      loadApprovals();
+    }).catch(function(e){
+      var msg = e.message || "操作失败";
+      if(e.code === "SELF_APPROVAL"){
+        msg = "不能自批";
+      } else if(e.status === 409){
+        msg = "该单状态已变更，请刷新";
+        loadApprovals();
+      } else if(e.status === 404){
+        msg = "审批单不存在";
+        loadApprovals();
+      }
+      $("b1-action-error").textContent = msg;
+      $("b1-action-error").style.display = "block";
+    }).finally(function(){
+      $("b1-action-submit").disabled = false;
+    });
+  };
 
-  /* ---------- 绑定 ---------- */
-  $("btn-new").onclick = function(){ openModal(null); };
-  $("btn-refresh").onclick = function(){ refresh().then(function(){ toast("已刷新", "ok"); }); };
-  $("btn-cancel").onclick = closeModal;
-  $("btn-save").onclick = save;
-  $("modal-bg").onclick = function(e){ if(e.target === this) closeModal(); };
-  $("filter").onchange = function(){ loadItems(); };
+  // ========== B2 计划单 ==========
+  window.loadPlans = function(){
+    var status = $("b2-status").value;
+    var agentId = $("b2-agent").value.trim();
+    var taskId = $("b2-task").value.trim();
+    var params = [];
+    if(status) params.push("status=" + encodeURIComponent(status));
+    if(agentId) params.push("agentId=" + encodeURIComponent(agentId));
+    if(taskId) params.push("taskId=" + encodeURIComponent(taskId));
+    var url = "/plans" + (params.length ? ("?" + params.join("&")) : "");
+    
+    adminReq(url).then(function(res){
+      var items = res && res.items || [];
+      renderB2(items);
+    }).catch(function(e){
+      handleAdminError(e, "b2");
+    });
+  };
+  
+  window.resetPlans = function(){
+    $("b2-status").value = "";
+    $("b2-agent").value = "";
+    $("b2-task").value = "";
+    loadPlans();
+  };
+  
+  function renderB2(items){
+    var tb = $("b2-tbody");
+    tb.innerHTML = "";
+    $("b2-empty").style.display = items.length ? "none" : "block";
+    items.forEach(function(it){
+      var tr = document.createElement("tr");
+      tr.style.cursor = "pointer";
+      tr.onclick = function(){ openB2Drawer(it); };
+      
+      tr.appendChild(createTd(it.id));
+      tr.appendChild(createTd(it.agentId));
+      tr.appendChild(createTd(it.taskId));
+      
+      var tdSt = document.createElement("td");
+      var tag = document.createElement("span");
+      tag.className = "tag " + (it.status || "");
+      tag.textContent = it.status || "—";
+      tdSt.appendChild(tag);
+      tr.appendChild(tdSt);
+      
+      tr.appendChild(createTd(it.summary));
+      tr.appendChild(createTd(fmt(it.requestedAt), "time"));
+      tr.appendChild(createTd(fmt(it.decidedAt), "time"));
+      tr.appendChild(createTd(it.decidedBy));
+      
+      var tdOps = document.createElement("td");
+      tdOps.className = "ops";
+      tdOps.onclick = function(e){ e.stopPropagation(); };
+      
+      var btnDetail = document.createElement("button");
+      btnDetail.className = "link";
+      btnDetail.textContent = "详情";
+      btnDetail.onclick = function(){ openB2Drawer(it); };
+      tdOps.appendChild(btnDetail);
+      
+      if(it.status !== "REJECTED"){
+        var btnApprove = document.createElement("button");
+        btnApprove.className = "link";
+        btnApprove.textContent = "批准";
+        btnApprove.onclick = function(){ openB2ActionModal(it.id, "approve"); };
+        if(it.status === "APPROVED"){
+          btnApprove.title = "该计划已是批准状态";
+        }
+        tdOps.appendChild(btnApprove);
+      }
+      
+      if(it.status !== "APPROVED"){
+        var btnReject = document.createElement("button");
+        btnReject.className = "link danger";
+        btnReject.textContent = "否决";
+        btnReject.onclick = function(){ openB2ActionModal(it.id, "reject"); };
+        tdOps.appendChild(btnReject);
+      } else {
+        var btnReject = document.createElement("button");
+        btnReject.className = "link danger";
+        btnReject.textContent = "否决";
+        btnReject.disabled = true;
+        btnReject.title = "已批准，不能否决";
+        tdOps.appendChild(btnReject);
+      }
+      
+      tr.appendChild(tdOps);
+      tb.appendChild(tr);
+    });
+  }
+  
+  function openB2Drawer(item){
+    var body = $("b2-drawer-body");
+    body.innerHTML = "";
+    var fields = [
+      {label: "计划单号", value: item.id},
+      {label: "Agent", value: item.agentId},
+      {label: "任务号", value: item.taskId},
+      {label: "状态", value: item.status},
+      {label: "摘要", value: item.summary},
+      {label: "提交时间", value: fmt(item.requestedAt)},
+      {label: "决策时间", value: fmt(item.decidedAt)},
+      {label: "决策人", value: item.decidedBy},
+      {label: "审批备注", value: item.note}
+    ];
+    fields.forEach(function(f){
+      var div = document.createElement("div");
+      div.className = "drawer-field";
+      div.innerHTML = '<div class="label">' + f.label + '</div><div class="value">' + (f.value || "—") + '</div>';
+      body.appendChild(div);
+    });
+    
+    if(item.plan){
+      var planTitle = document.createElement("div");
+      planTitle.style.cssText = "font-size:14px;font-weight:600;margin:16px 0 8px;";
+      planTitle.textContent = "计划详情";
+      body.appendChild(planTitle);
+      
+      if(item.plan.summary){
+        var div = document.createElement("div");
+        div.className = "drawer-field";
+        div.innerHTML = '<div class="label">计划摘要</div><div class="value">' + (item.plan.summary || "—") + '</div>';
+        body.appendChild(div);
+      }
+      
+      if(item.plan.steps && item.plan.steps.length){
+        var stepsTitle = document.createElement("div");
+        stepsTitle.style.cssText = "font-size:12px;color:var(--text-dim);margin:8px 0 4px;";
+        stepsTitle.textContent = "步骤序列";
+        body.appendChild(stepsTitle);
+        
+        item.plan.steps.forEach(function(step, i){
+          var stepDiv = document.createElement("div");
+          stepDiv.style.cssText = "padding:8px;background:var(--panel-2);border-radius:6px;margin-bottom:6px;";
+          stepDiv.innerHTML = '<div style="font-size:12px;color:var(--text-dim);">步骤 ' + (i+1) + '</div>' +
+            '<div><strong>' + (step.tool || "—") + '</strong></div>' +
+            '<div style="font-size:12px;color:var(--text-dim);">' + (step.intent || "—") + '</div>';
+          body.appendChild(stepDiv);
+        });
+      }
+    }
+    
+    $("b2-drawer-bg").classList.add("open");
+    $("b2-drawer").classList.add("open");
+  }
+  
+  window.closeB2Drawer = function(){
+    $("b2-drawer-bg").classList.remove("open");
+    $("b2-drawer").classList.remove("open");
+  };
+  
+  window.openB2ActionModal = function(id, action){
+    b2CurrentId = id;
+    b2CurrentAction = action;
+    $("b2-action-title").textContent = action === "approve" ? "批准计划单" : "否决计划单";
+    $("b2-approver").value = "";
+    $("b2-note").value = "";
+    $("b2-action-error").style.display = "none";
+    $("b2-action-modal").classList.add("open");
+  };
+  
+  window.closeB2ActionModal = function(){
+    $("b2-action-modal").classList.remove("open");
+    b2CurrentId = null;
+    b2CurrentAction = null;
+  };
+  
+  window.submitB2Action = function(){
+    var approver = $("b2-approver").value.trim();
+    var note = $("b2-note").value.trim();
+    
+    if(!approver){
+      $("b2-action-error").textContent = "决策人不能为空";
+      $("b2-action-error").style.display = "block";
+      return;
+    }
+    
+    var url = "/plans/" + encodeURIComponent(b2CurrentId) + "/" + b2CurrentAction;
+    var body = { approver: approver, note: note };
+    
+    $("b2-action-submit").disabled = true;
+    adminReq(url, {
+      method: "POST",
+      headers: {"Content-Type":"application/json"},
+      body: JSON.stringify(body)
+    }).then(function(res){
+      closeB2ActionModal();
+      closeB2Drawer();
+      toast(b2CurrentAction === "approve" ? "已批准" : "已否决", "ok");
+      loadPlans();
+    }).catch(function(e){
+      var msg = e.message || "操作失败";
+      if(e.code === "SELF_APPROVAL"){
+        msg = "不能自批";
+      } else if(e.code === "PLAN_REJECTED" || e.status === 409){
+        msg = "已否决，不能补批";
+        loadPlans();
+      } else if(e.status === 404){
+        msg = "计划单不存在";
+        loadPlans();
+      }
+      $("b2-action-error").textContent = msg;
+      $("b2-action-error").style.display = "block";
+    }).finally(function(){
+      $("b2-action-submit").disabled = false;
+    });
+  };
+
+  // ========== B3 审计 ==========
+  window.loadAudit = function(){
+    var action = $("b3-action").value.trim();
+    var q = $("b3-q").value.trim();
+    var limit = parseInt($("b3-limit").value, 10) || 100;
+    if(limit < 1) limit = 1;
+    if(limit > 500) limit = 500;
+    auditLimit = limit;
+    
+    var params = [];
+    if(action) params.push("action=" + encodeURIComponent(action));
+    if(q) params.push("q=" + encodeURIComponent(q));
+    params.push("limit=" + auditLimit);
+    params.push("offset=" + auditOffset);
+    
+    adminReq("/audit?" + params.join("&")).then(function(res){
+      auditTotal = res.total || 0;
+      renderB3(res.items || []);
+      updateAuditPagination();
+    }).catch(function(e){
+      handleAdminError(e, "b3");
+    });
+  };
+  
+  window.resetAudit = function(){
+    $("b3-action").value = "";
+    $("b3-q").value = "";
+    $("b3-limit").value = "100";
+    auditOffset = 0;
+    auditLimit = 100;
+    loadAudit();
+  };
+  
+  window.auditPrev = function(){
+    auditOffset = Math.max(0, auditOffset - auditLimit);
+    loadAudit();
+  };
+  
+  window.auditNext = function(){
+    auditOffset = auditOffset + auditLimit;
+    loadAudit();
+  };
+  
+  function updateAuditPagination(){
+    var currentPage = Math.floor(auditOffset / auditLimit) + 1;
+    var totalPages = Math.ceil(auditTotal / auditLimit) || 1;
+    $("b3-page-info").textContent = "第 " + currentPage + " / " + totalPages + " 页，共 " + auditTotal + " 条";
+    $("b3-prev").disabled = auditOffset === 0;
+    $("b3-next").disabled = (auditOffset + auditLimit) >= auditTotal;
+  }
+  
+  function renderB3(items){
+    var tb = $("b3-tbody");
+    tb.innerHTML = "";
+    $("b3-empty").style.display = items.length ? "none" : "block";
+    items.forEach(function(it){
+      var tr = document.createElement("tr");
+      tr.appendChild(createTd(it.seq));
+      tr.appendChild(createTd(it.action));
+      tr.appendChild(createTd(it.hash, "hash"));
+      
+      var tdPayload = document.createElement("td");
+      var collapsible = document.createElement("div");
+      collapsible.className = "collapsible";
+      var header = document.createElement("div");
+      header.className = "collapsible-header";
+      header.innerHTML = '<span>▶</span> <span>展开内容</span>';
+      header.onclick = function(){
+        collapsible.classList.toggle("open");
+        header.querySelector("span").textContent = collapsible.classList.contains("open") ? "▼" : "▶";
+      };
+      var bodyDiv = document.createElement("div");
+      bodyDiv.className = "collapsible-body";
+      var pre = document.createElement("pre");
+      pre.textContent = it.payload || "—";
+      bodyDiv.appendChild(pre);
+      collapsible.appendChild(header);
+      collapsible.appendChild(bodyDiv);
+      tdPayload.appendChild(collapsible);
+      tr.appendChild(tdPayload);
+      
+      tb.appendChild(tr);
+    });
+  }
+  
+  window.verifyAudit = function(){
+    adminReq("/audit/verify").then(function(res){
+      var panel = $("b3-verify");
+      var content = $("b3-verify-content");
+      panel.style.display = "block";
+      
+      var validText = res.valid ? '<span style="color:var(--ok);">✓ 链完整</span>' : '<span style="color:var(--danger);">✗ 链校验失败</span>';
+      var html = '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">';
+      html += '<div class="drawer-field"><div class="label">校验结果</div><div class="value">' + validText + '</div></div>';
+      html += '<div class="drawer-field"><div class="label">记录数</div><div class="value">' + (res.records || 0) + '</div></div>';
+      if(res.anchorRecords !== undefined){
+        html += '<div class="drawer-field"><div class="label">锚点记录数</div><div class="value">' + res.anchorRecords + '</div></div>';
+      }
+      if(res.anchorLag !== undefined){
+        html += '<div class="drawer-field"><div class="label">锚点延迟</div><div class="value">' + res.anchorLag + (res.anchorLag > 0 ? ' (追平中)' : '') + '</div></div>';
+      }
+      if(res.replicaFailures !== undefined){
+        html += '<div class="drawer-field"><div class="label">副本失败数</div><div class="value" style="' + (res.replicaFailures > 0 ? 'color:var(--danger);' : '') + '">' + res.replicaFailures + '</div></div>';
+      }
+      html += '</div>';
+      content.innerHTML = html;
+    }).catch(function(e){
+      toast("校验失败：" + (e.message || "未知错误"), "err");
+    });
+  };
+
+  // ========== B4 同步暂存 ==========
+  window.loadSpool = function(){
+    b4ViewMode = "pending";
+    adminReq("/sync-spool").then(function(res){
+      renderB4Stats(res.stats || {});
+      $("b4-dir").textContent = res.dir || "—";
+      renderB4Items(res.items || []);
+      $("b4-empty").style.display = (res.items || []).length ? "none" : "block";
+    }).catch(function(e){
+      if(e.status === 404 && e.code === "SPOOL_DISABLED"){
+        showB4Disabled();
+      } else {
+        handleAdminError(e, "b4");
+      }
+    });
+  };
+  
+  window.loadSpoolDead = function(){
+    b4ViewMode = "dead";
+    adminReq("/sync-spool/dead").then(function(res){
+      renderB4Stats({dead: res.deadTotal || 0, deadBytes: res.deadBytes || 0});
+      renderB4Items(res.items || []);
+      $("b4-empty").style.display = (res.items || []).length ? "none" : "block";
+    }).catch(function(e){
+      if(e.status === 404 && e.code === "SPOOL_DISABLED"){
+        showB4Disabled();
+      } else {
+        handleAdminError(e, "b4");
+      }
+    });
+  };
+  
+  function showB4Disabled(){
+    $("b4-stats").innerHTML = "";
+    $("b4-dir").textContent = "—";
+    $("b4-tbody").innerHTML = "";
+    $("b4-empty").innerHTML = "同步暂存区未启用（需文件审计存储 + 至少一个锚点副本）";
+    $("b4-empty").style.display = "block";
+  }
+  
+  function renderB4Stats(stats){
+    var grid = $("b4-stats");
+    grid.innerHTML = "";
+    var items = [
+      {label: "待补传", value: stats.pending || 0},
+      {label: "待补传大小", value: formatBytes(stats.pendingBytes)},
+      {label: "死信", value: stats.dead || 0},
+      {label: "死信大小", value: formatBytes(stats.deadBytes)},
+      {label: "已捕获", value: stats.captured || 0},
+      {label: "已送达", value: stats.delivered || 0},
+      {label: "已失败", value: stats.failed || 0},
+      {label: "已死信", value: stats.deadLettered || 0}
+    ];
+    items.forEach(function(it){
+      var card = document.createElement("div");
+      card.className = "stat-card";
+      card.innerHTML = '<div class="label">' + it.label + '</div><div class="value">' + it.value + '</div>';
+      grid.appendChild(card);
+    });
+  }
+  
+  function renderB4Items(items){
+    var tb = $("b4-tbody");
+    tb.innerHTML = "";
+    items.forEach(function(it){
+      var tr = document.createElement("tr");
+      tr.appendChild(createTd(it.file));
+      tr.appendChild(createTd(it.replica));
+      tr.appendChild(createTd(it.attempts));
+      tr.appendChild(createTd(fmt(it.createdAt), "time"));
+      tr.appendChild(createTd(it.lastError || "—"));
+      
+      var tdSnapshot = document.createElement("td");
+      if(it.snapshot){
+        var collapsible = document.createElement("div");
+        collapsible.className = "collapsible";
+        var header = document.createElement("div");
+        header.className = "collapsible-header";
+        header.innerHTML = '<span>▶</span> <span>查看快照</span>';
+        header.onclick = function(){
+          collapsible.classList.toggle("open");
+          header.querySelector("span").textContent = collapsible.classList.contains("open") ? "▼" : "▶";
+        };
+        var bodyDiv = document.createElement("div");
+        bodyDiv.className = "collapsible-body";
+        var pre = document.createElement("pre");
+        try {
+          pre.textContent = JSON.stringify(JSON.parse(it.snapshot), null, 2);
+        } catch(e) {
+          pre.textContent = it.snapshot;
+        }
+        bodyDiv.appendChild(pre);
+        collapsible.appendChild(header);
+        collapsible.appendChild(bodyDiv);
+        tdSnapshot.appendChild(collapsible);
+      } else {
+        tdSnapshot.textContent = "—";
+      }
+      tr.appendChild(tdSnapshot);
+      
+      tb.appendChild(tr);
+    });
+  }
+  
+  window.spoolRetry = function(){
+    if(!confirm("确认执行立即补传？")) return;
+    adminReq("/sync-spool/retry", {method: "POST"}).then(function(res){
+      toast("送达 " + (res.delivered || 0) + " / 重试 " + (res.retrying || 0) + " / 死信 " + (res.deadLettered || 0) + " / 跳过 " + (res.skipped || 0), "ok");
+      loadSpool();
+    }).catch(function(e){
+      toast("补传失败：" + (e.message || ""), "err");
+    });
+  };
+  
+  window.spoolCleanup = function(){
+    if(!confirm("确认执行立即清理？")) return;
+    adminReq("/sync-spool/cleanup", {method: "POST"}).then(function(res){
+      toast("按时间删 " + (res.droppedByAge || 0) + " / 按容量删 " + (res.droppedBySize || 0) + " / 剩余 " + formatBytes(res.remainingBytes), "ok");
+      loadSpool();
+    }).catch(function(e){
+      toast("清理失败：" + (e.message || ""), "err");
+    });
+  };
+
+  // ========== 错误处理 ==========
+  function handleAdminError(e, area){
+    if(e.status === 401 || e.code === "UNAUTHORIZED"){
+      showBanner("令牌无效或已过期", "error", false);
+      updateBAuthState();
+    } else if(e.status === 403 && e.code === "ADMIN_API_DISABLED"){
+      showBanner("管理接口未配置访问令牌（服务端 metrics-token 为空）", "warn", false);
+    } else if(e.status === 404){
+      showBanner("管理接口未开启", "warn", false);
+    } else if(e.status === 403){
+      showBanner("无权限访问", "error", false);
+    } else {
+      toast((area || "操作") + "失败：" + (e.message || "未知错误"), "err");
+    }
+  }
+  
+  window.retryBanner = function(){
+    hideBanner();
+    if(currentTab === "A"){
+      refreshA();
+    } else if(currentSubTab === "B1"){
+      loadApprovals();
+    } else if(currentSubTab === "B2"){
+      loadPlans();
+    } else if(currentSubTab === "B3"){
+      loadAudit();
+    } else if(currentSubTab === "B4"){
+      loadSpool();
+    }
+  };
+
+  // ========== 键盘事件 ==========
   document.addEventListener("keydown", function(e){
-    if(e.key === "Escape") closeModal();
+    if(e.key === "Escape"){
+      closeItemModal();
+      closeB1Drawer();
+      closeB1ActionModal();
+      closeB2Drawer();
+      closeB2ActionModal();
+      closeTokenModal();
+    }
   });
 
-  loadMeta().then(refresh).catch(function(e){ toast("看板加载失败：" + e.message, "err"); });
+  // ========== 初始化 ==========
+  function init(){
+    updateTokenBadge();
+    loadMeta().then(function(){
+      return refreshA();
+    }).catch(function(e){
+      toast("看板加载失败：" + e.message, "err");
+    });
+  }
+  
+  init();
 })();
 </script>
 </body>
