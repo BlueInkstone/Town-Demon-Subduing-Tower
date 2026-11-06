@@ -1,6 +1,11 @@
 # Maven 构建输出
 target/
 **/target/
+*.jar
+
+# javac 直接编译输出
+out/
+out-*/
 
 # IDE 配置文件
 .idea/
@@ -8,12 +13,25 @@ target/
 .vscode/
 *.swp
 *.swo
+.settings/
+.classpath
+.project
 
 # Java 编译输出
 *.class
 
-# 日志文件
+# 日志与运行时产物（审计锚点、暂存区、状态、回放、归档）
 *.log
+.towndemontower/
+*.anchor
+*.spool
+*.rec
+*.archive
+*.lst
+
+# 构建辅助文件
+cp.txt
+sources.txt
 
 # 操作系统文件
 .DS_Store
