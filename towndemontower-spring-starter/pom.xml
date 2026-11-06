@@ -1,0 +1,96 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-starter-parent</artifactId>
+        <version>3.2.5</version>
+        <relativePath/>
+    </parent>
+
+    <groupId>com.towndemontower</groupId>
+    <artifactId>towndemontower-spring-starter</artifactId>
+    <version>0.1.0</version>
+    <packaging>jar</packaging>
+
+    <name>Town Demon-Subduing Tower Spring Starter</name>
+    <description>薄适配层：AOP 拦截 @AgentSkill 方法，并经 Spring 自动配置装配 core 默认治理策略。</description>
+
+    <properties>
+        <java.version>21</java.version>
+    </properties>
+
+    <dependencies>
+        <!-- core：纯 Java 治理内核（零 Spring 依赖），由本 starter 装配 -->
+        <dependency>
+            <groupId>com.towndemontower</groupId>
+            <artifactId>towndemontower-core</artifactId>
+            <version>0.1.0</version>
+        </dependency>
+
+        <!-- 自动配置注解（@AutoConfiguration / @ConditionalOn*） -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-autoconfigure</artifactId>
+        </dependency>
+
+        <!-- AOP：@Aspect / @Around / AspectJ 自动代理 -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-aop</artifactId>
+        </dependency>
+
+        <!-- 事务一致性（Outbox）：JDBC。
+             标记为 optional —— 只服务于 starter 自身的 tx 能力（@ConditionalOnBean(DataSource)），
+             不传递给消费方。原因：强制传递 JDBC 会让不含数据库驱动的消费方
+             在启动时被 DataSourceAutoConfiguration 拦下（"Failed to determine a suitable driver class"），
+             而 starter 的治理核心（core 装饰器链 / AOP）并不需要数据库。
+             需要 tx 能力的消费方自行引入 spring-boot-starter-jdbc + 驱动即可。 -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-jdbc</artifactId>
+            <optional>true</optional>
+        </dependency>
+        <dependency>
+            <groupId>com.h2database</groupId>
+            <artifactId>h2</artifactId>
+            <scope>test</scope>
+        </dependency>
+
+        <!-- 观测端点（/towndemontower/metrics）所需注解。
+             标记 optional —— 仅在显式打开 towndemontower.metrics-endpoint 且接入方本身是 Web 应用时生效；
+             纯批处理/CLI 接入方不会因为引入本 starter 而被拉起 Web 容器。 -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-web</artifactId>
+            <optional>true</optional>
+        </dependency>
+        <!-- starter 自身的 tx 用例需要真实 DataSource。
+             注意：不要在这里再声明一次 spring-boot-starter-jdbc —— 同一 GAV 重复声明会让 Maven
+             取"后出现"的那条（test scope），导致主代码编译期看不到 JdbcTemplate / @Transactional。
+             optional 依赖对本模块自身的 compile/test 类路径仍然可见，已足够覆盖用例。 -->
+
+        <!-- 测试 -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <configuration>
+                    <!-- 暴露方法参数名，便于切面把 @AgentSkill 实参映射为 IntentObject.args -->
+                    <parameters>true</parameters>
+                </configuration>
+            </plugin>
+        </plugins>
+    </build>
+</project>

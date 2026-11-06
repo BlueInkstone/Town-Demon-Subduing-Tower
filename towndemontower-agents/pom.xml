@@ -1,0 +1,82 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-starter-parent</artifactId>
+        <version>3.2.5</version>
+        <relativePath/>
+    </parent>
+
+    <groupId>com.towndemontower</groupId>
+    <artifactId>towndemontower-agents</artifactId>
+    <version>0.1.0</version>
+    <packaging>jar</packaging>
+
+    <name>Town Demon-Subduing Tower Agents</name>
+    <description>Agent 员工花名册：把每个 Agent 当作一名数字员工登记（工号/姓名/岗位/入职时间/在职状态/可用技能/权限/模型档位）；员工档案是 RBAC 权限的权威来源，入职授予、离职停用即回收。</description>
+
+    <properties>
+        <java.version>21</java.version>
+        <!-- 本地仓库缺少 BOM 默认的 tomcat 10.1.19，锁到已缓存的 10.1.20 以保证离线可解析 -->
+        <tomcat.version>10.1.20</tomcat.version>
+        <!-- OpenAPI/Swagger UI：2.3.0 与 Spring Boot 3.2.x 匹配，本地仓库已缓存 -->
+        <springdoc.version>2.3.0</springdoc.version>
+        <!-- 传递依赖 jackson-dataformat-yaml 的 2.15.4 本地缺失，锁到已缓存的 2.15.3 -->
+        <jackson-bom.version>2.15.3</jackson-bom.version>
+    </properties>
+
+    <dependencies>
+        <!-- 治理内核 + Spring 薄适配层（core 装饰器链 / RBAC / 审计） -->
+        <dependency>
+            <groupId>com.towndemontower</groupId>
+            <artifactId>towndemontower-spring-starter</artifactId>
+            <version>0.1.0</version>
+        </dependency>
+
+        <!-- REST API + 花名册静态页 -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-web</artifactId>
+        </dependency>
+
+        <!-- OpenAPI 3 契约 + Swagger UI -->
+        <dependency>
+            <groupId>org.springdoc</groupId>
+            <artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
+            <version>${springdoc.version}</version>
+        </dependency>
+
+        <!-- 测试 -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <configuration>
+                    <parameters>true</parameters>
+                </configuration>
+            </plugin>
+            <plugin>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-maven-plugin</artifactId>
+                <configuration>
+                    <mainClass>com.towndemontower.agents.AgentsApplication</mainClass>
+                    <profiles>
+                        <profile>demo</profile>
+                    </profiles>
+                </configuration>
+            </plugin>
+        </plugins>
+    </build>
+</project>

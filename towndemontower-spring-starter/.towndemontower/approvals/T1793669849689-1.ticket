@@ -1,0 +1,13 @@
+id	T1793669849689-1
+taskId	default-task
+tool	deployService
+risk	R2
+impact	
+rollback	
+by	quickstart-agent
+status	EXPIRED
+createdAt	2026-11-03T01:37:29.690841600Z
+deadline	2026-11-03T02:37:29.690841600Z
+approver	
+comment	timeout
+decidedAt	2026-11-03T02:42:52.945467Z

@@ -1,0 +1,509 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Town Demon-Subduing Tower · 交付进度看板</title>
+<style>
+  :root{
+    --bg:#f5f7fa; --panel:#ffffff; --panel-2:#fafbfc;
+    --text:#1f2733; --text-dim:#5b6675; --text-mute:#8a94a3;
+    --line:#e3e8ef; --line-strong:#cfd6e0;
+    --brand:#3b6fd4; --brand-soft:#eaf0fc;
+    --ok:#1f9254; --ok-soft:#e6f4ec;
+    --warn:#c77b12; --warn-soft:#fdf1de;
+    --info:#2b6cb0; --info-soft:#e5effa;
+    --idle:#6b7684; --idle-soft:#eef0f3;
+    --danger:#c0392b; --danger-soft:#fbeae8;
+    --radius:10px;
+    --shadow:0 1px 2px rgba(16,24,40,.04),0 4px 14px rgba(16,24,40,.06);
+  }
+  @media (prefers-color-scheme: dark){
+    :root{
+      --bg:#12161c; --panel:#1a1f27; --panel-2:#20262f;
+      --text:#e6eaf0; --text-dim:#a4aebc; --text-mute:#7c8796;
+      --line:#2a323d; --line-strong:#39424f;
+      --brand:#6b9bf0; --brand-soft:#1e2a3f;
+      --ok:#4ec27f; --ok-soft:#16301f;
+      --warn:#e0a63f; --warn-soft:#332612;
+      --info:#63a4e8; --info-soft:#16283c;
+      --idle:#96a1b0; --idle-soft:#242b34;
+      --danger:#e8776a; --danger-soft:#331b18;
+      --shadow:0 1px 2px rgba(0,0,0,.3),0 6px 18px rgba(0,0,0,.28);
+    }
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0; padding:24px; background:var(--bg); color:var(--text);
+    font:14px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;
+  }
+  .wrap{max-width:1280px;margin:0 auto;}
+  header{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:18px;}
+  h1{margin:0;font-size:20px;font-weight:650;letter-spacing:.2px;}
+  .sub{margin:4px 0 0;color:var(--text-dim);font-size:13px;}
+  .clock{color:var(--text-mute);font-size:12px;font-variant-numeric:tabular-nums;}
+
+  .cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(158px,1fr));gap:12px;margin-bottom:16px;}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:14px 16px;box-shadow:var(--shadow);}
+  .card .k{color:var(--text-dim);font-size:12px;}
+  .card .v{font-size:24px;font-weight:660;margin-top:4px;font-variant-numeric:tabular-nums;letter-spacing:-.4px;}
+  .card .v small{font-size:13px;font-weight:500;color:var(--text-mute);margin-left:2px;}
+  .card.hero{background:linear-gradient(135deg,var(--brand-soft),var(--panel));border-color:var(--brand);}
+  .card.hero .v{color:var(--brand);}
+
+  .bar-outer{height:6px;border-radius:99px;background:var(--idle-soft);overflow:hidden;margin-top:8px;}
+  .bar-inner{height:100%;border-radius:99px;background:var(--brand);transition:width .35s ease;}
+
+  .toolbar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:12px;}
+  .toolbar .spacer{flex:1;}
+  button,select,input,textarea{
+    font:inherit;color:var(--text);background:var(--panel);
+    border:1px solid var(--line-strong);border-radius:8px;padding:7px 11px;
+  }
+  input:focus,select:focus,textarea:focus{outline:none;border-color:var(--brand);box-shadow:0 0 0 3px var(--brand-soft);}
+  button{cursor:pointer;transition:.15s;}
+  button:hover{border-color:var(--brand);color:var(--brand);}
+  button.primary{background:var(--brand);border-color:var(--brand);color:#fff;font-weight:560;}
+  button.primary:hover{filter:brightness(1.06);color:#fff;}
+  button.link{border:none;background:none;color:var(--brand);padding:2px 6px;}
+  button.link.danger{color:var(--danger);}
+  button.link:hover{text-decoration:underline;}
+
+  .panel{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow);overflow:hidden;}
+  .table-scroll{overflow-x:auto;}
+  table{width:100%;border-collapse:collapse;}
+  th,td{padding:11px 14px;text-align:left;border-bottom:1px solid var(--line);vertical-align:middle;}
+  th{background:var(--panel-2);color:var(--text-dim);font-weight:600;font-size:12.5px;white-space:nowrap;}
+  tbody tr:last-child td{border-bottom:none;}
+  tbody tr:hover{background:var(--panel-2);}
+  td.time{font-variant-numeric:tabular-nums;white-space:nowrap;color:var(--text-dim);}
+  td.ops{white-space:nowrap;}
+  .empty{padding:44px 16px;text-align:center;color:var(--text-mute);}
+
+  .tag{display:inline-flex;align-items:center;gap:5px;padding:2px 9px;border-radius:99px;font-size:12px;font-weight:560;white-space:nowrap;}
+  .tag::before{content:"";width:6px;height:6px;border-radius:99px;background:currentColor;}
+  .tag.NOT_STARTED{color:var(--idle);background:var(--idle-soft);}
+  .tag.IN_PROGRESS{color:var(--info);background:var(--info-soft);}
+  .tag.DELAYED{color:var(--warn);background:var(--warn-soft);}
+  .tag.COMPLETED{color:var(--ok);background:var(--ok-soft);}
+  .manual{margin-left:6px;font-size:11px;color:var(--text-mute);border:1px dashed var(--line-strong);border-radius:4px;padding:0 4px;}
+
+  .prog{display:flex;align-items:center;gap:8px;min-width:112px;}
+  .prog .track{flex:1;height:6px;border-radius:99px;background:var(--idle-soft);overflow:hidden;}
+  .prog .fill{height:100%;border-radius:99px;background:var(--brand);}
+  .prog .fill.done{background:var(--ok);}
+  .prog .fill.late{background:var(--warn);}
+  .prog .num{width:38px;text-align:right;font-variant-numeric:tabular-nums;font-size:12.5px;color:var(--text-dim);}
+
+  .modal-bg{position:fixed;inset:0;background:rgba(16,24,40,.5);display:none;align-items:center;justify-content:center;padding:20px;z-index:50;}
+  .modal-bg.open{display:flex;}
+  .modal{background:var(--panel);border:1px solid var(--line);border-radius:12px;width:100%;max-width:620px;max-height:92vh;overflow:auto;box-shadow:0 18px 48px rgba(0,0,0,.3);}
+  .modal h2{margin:0;padding:16px 20px;font-size:16px;border-bottom:1px solid var(--line);}
+  .modal .body{padding:18px 20px;}
+  .modal .foot{padding:14px 20px;border-top:1px solid var(--line);display:flex;justify-content:flex-end;gap:9px;}
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
+  .field{display:flex;flex-direction:column;gap:5px;}
+  .field.full{grid-column:1/-1;}
+  .field label{font-size:12.5px;color:var(--text-dim);font-weight:560;}
+  .field label .req{color:var(--danger);}
+  .field .hint{font-size:11.5px;color:var(--text-mute);}
+  .field input,.field select{width:100%;}
+
+  .toast{position:fixed;right:20px;bottom:20px;z-index:80;display:flex;flex-direction:column;gap:9px;}
+  .toast div{
+    background:var(--panel);border:1px solid var(--line);border-left:3px solid var(--brand);
+    border-radius:8px;padding:11px 15px;box-shadow:var(--shadow);max-width:400px;
+    animation:slide .22s ease;
+  }
+  .toast div.ok{border-left-color:var(--ok);}
+  .toast div.err{border-left-color:var(--danger);}
+  .toast div.warn{border-left-color:var(--warn);}
+  @keyframes slide{from{opacity:0;transform:translateX(14px);}to{opacity:1;transform:none;}}
+
+  .note{color:var(--text-mute);font-size:12px;margin-top:10px;}
+  @media (max-width:640px){ .grid{grid-template-columns:1fr;} body{padding:14px;} }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div>
+      <h1>Town Demon-Subduing Tower · 交付进度看板</h1>
+      <p class="sub">本产品各版本里程碑的真实进度：阶段、负责人、计划与实际时间、进度百分比与状态（状态随时间自动推导，逾期即刻显示为「已延期」）</p>
+    </div>
+    <div class="clock" id="clock">—</div>
+  </header>
+
+  <section class="cards" id="cards">
+    <div class="card hero">
+      <div class="k">整体进度</div>
+      <div class="v" id="c-overall">0<small>%</small></div>
+      <div class="bar-outer"><div class="bar-inner" id="c-bar" style="width:0%"></div></div>
+    </div>
+    <div class="card"><div class="k">交付项总数</div><div class="v" id="c-total">0</div></div>
+    <div class="card"><div class="k">完成率</div><div class="v" id="c-ratio">0<small>%</small></div></div>
+    <div class="card"><div class="k">已完成</div><div class="v" id="c-done">0</div></div>
+    <div class="card"><div class="k">进行中</div><div class="v" id="c-doing">0</div></div>
+    <div class="card"><div class="k">已延期</div><div class="v" id="c-late">0</div></div>
+    <div class="card"><div class="k">未开始</div><div class="v" id="c-idle">0</div></div>
+    <div class="card"><div class="k">下一个交付节点</div><div class="v" id="c-next" style="font-size:16px">—</div></div>
+  </section>
+
+  <div class="toolbar">
+    <label for="filter" style="color:var(--text-dim);font-size:13px">状态筛选</label>
+    <select id="filter" style="min-width:150px">
+      <option value="">全部</option>
+    </select>
+    <div class="spacer"></div>
+    <button id="btn-refresh">刷新</button>
+    <button id="btn-new" class="primary">+ 新增交付项</button>
+  </div>
+
+  <div class="panel">
+    <div class="table-scroll">
+      <table>
+        <thead>
+          <tr>
+            <th>阶段名称</th><th>负责人</th><th>计划开始</th><th>计划完成</th>
+            <th>实际完成</th><th style="width:150px">当前进度</th><th>状态</th><th>操作</th>
+          </tr>
+        </thead>
+        <tbody id="tbody"></tbody>
+      </table>
+    </div>
+    <div class="empty" id="empty" style="display:none">当前筛选条件下没有交付项</div>
+    <div class="note" id="note"></div>
+  </div>
+</div>
+
+<div class="modal-bg" id="modal-bg">
+  <div class="modal">
+    <h2 id="modal-title">新增交付项</h2>
+    <div class="body">
+      <form id="form" onsubmit="return false;">
+        <div class="grid">
+          <div class="field full">
+            <label for="f-phase">交付阶段名称 <span class="req">*</span></label>
+            <input id="f-phase" placeholder="如：Phase 1 核心功能开发">
+          </div>
+          <div class="field">
+            <label for="f-owner">负责人 <span class="req">*</span></label>
+            <input id="f-owner" placeholder="如：张三">
+          </div>
+          <div class="field">
+            <label for="f-progress">当前进度百分比（0~100）</label>
+            <input id="f-progress" type="number" min="0" max="100" value="0">
+          </div>
+          <div class="field">
+            <label for="f-start">计划开始时间 <span class="req">*</span></label>
+            <input id="f-start" type="datetime-local" step="1">
+          </div>
+          <div class="field">
+            <label for="f-end">计划完成时间 <span class="req">*</span></label>
+            <input id="f-end" type="datetime-local" step="1">
+          </div>
+          <div class="field">
+            <label for="f-actual">实际完成时间</label>
+            <input id="f-actual" type="datetime-local" step="1">
+            <span class="hint">填写后状态自动判定为"已完成"</span>
+          </div>
+          <div class="field">
+            <label for="f-status">状态</label>
+            <select id="f-status"><option value="">自动推导</option></select>
+            <span class="hint" id="f-status-hint">留空则由计划时间与进度自动推导</span>
+          </div>
+        </div>
+      </form>
+    </div>
+    <div class="foot">
+      <button id="btn-cancel">取消</button>
+      <button id="btn-save" class="primary">保存</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+(function(){
+  "use strict";
+  var API = "/api/delivery";
+  var editingId = null;
+  var STATUS = [];
+
+  function $(id){ return document.getElementById(id); }
+
+  function toast(msg, kind){
+    var box = $("toast");
+    var d = document.createElement("div");
+    d.className = kind || "";
+    d.textContent = msg;
+    box.appendChild(d);
+    setTimeout(function(){
+      d.style.transition = "opacity .3s";
+      d.style.opacity = "0";
+      setTimeout(function(){ if(d.parentNode) d.parentNode.removeChild(d); }, 320);
+    }, 3200);
+  }
+
+  function fmt(dt){
+    if(!dt) return "—";
+    return String(dt).replace("T"," ").slice(0,19);
+  }
+
+  function fmtShort(dt){
+    if(!dt) return "—";
+    return String(dt).replace("T"," ").slice(0,16);
+  }
+
+  function req(url, opt){
+    return fetch(url, opt).then(function(res){
+      return res.text().then(function(txt){
+        var data = null;
+        try { data = txt ? JSON.parse(txt) : null; } catch(e){ data = { message: txt }; }
+        if(!res.ok){
+          var err = new Error((data && data.message) || ("HTTP " + res.status));
+          err.status = res.status; err.data = data;
+          throw err;
+        }
+        return data;
+      });
+    });
+  }
+
+  /* ---------- 元数据与筛选器 ---------- */
+  function loadMeta(){
+    return req(API + "/meta").then(function(m){
+      STATUS = m.statuses || [];
+      var sel = $("filter");
+      STATUS.forEach(function(s){
+        var o = document.createElement("option");
+        o.value = s.code; o.textContent = s.label;
+        sel.appendChild(o);
+      });
+      $("clock").textContent = "服务器时间 " + fmt(m.now);
+    });
+  }
+
+  /* ---------- 汇总卡片 ---------- */
+  function loadSummary(){
+    return req(API + "/summary").then(function(s){
+      $("c-overall").innerHTML = s.overallProgressPercent + "<small>%</small>";
+      $("c-bar").style.width = s.overallProgressPercent + "%";
+      $("c-total").textContent = s.totalCount;
+      $("c-ratio").innerHTML = s.completedRatioPercent + "<small>%</small>";
+      $("c-done").textContent = s.completedCount;
+      $("c-doing").textContent = s.inProgressCount;
+      $("c-late").textContent = s.delayedCount;
+      $("c-idle").textContent = s.notStartedCount;
+      $("c-next").textContent = s.nextUpcomingPlannedEnd ? fmtShort(s.nextUpcomingPlannedEnd) : "—";
+    });
+  }
+
+  /* ---------- 列表 ---------- */
+  function loadItems(){
+    var f = $("filter").value;
+    var url = API + "/items" + (f ? ("?status=" + encodeURIComponent(f)) : "");
+    return req(url).then(function(items){
+      render(items);
+    });
+  }
+
+  function render(items){
+    var tb = $("tbody");
+    tb.innerHTML = "";
+    $("empty").style.display = items.length ? "none" : "block";
+    items.forEach(function(it){
+      var tr = document.createElement("tr");
+
+      var td1 = document.createElement("td");
+      var strong = document.createElement("div");
+      strong.style.fontWeight = "560";
+      strong.textContent = it.phaseName;
+      td1.appendChild(strong);
+      var idLine = document.createElement("div");
+      idLine.style.cssText = "font-size:11.5px;color:var(--text-mute);font-variant-numeric:tabular-nums";
+      idLine.textContent = it.id;
+      td1.appendChild(idLine);
+      tr.appendChild(td1);
+
+      tr.appendChild(td(it.owner));
+
+      var tds = document.createElement("td"); tds.className = "time"; tds.textContent = fmt(it.plannedStart); tr.appendChild(tds);
+      var tde = document.createElement("td"); tde.className = "time"; tde.textContent = fmt(it.plannedEnd); tr.appendChild(tde);
+      var tda = document.createElement("td"); tda.className = "time"; tda.textContent = fmt(it.actualEnd); tr.appendChild(tda);
+
+      var tdProg = document.createElement("td");
+      var wrap = document.createElement("div"); wrap.className = "prog";
+      var track = document.createElement("div"); track.className = "track";
+      var fill = document.createElement("div");
+      fill.className = "fill" + (it.status === "COMPLETED" ? " done" : (it.status === "DELAYED" ? " late" : ""));
+      fill.style.width = Math.max(0, Math.min(100, it.progressPercent)) + "%";
+      track.appendChild(fill);
+      var num = document.createElement("span"); num.className = "num"; num.textContent = it.progressPercent + "%";
+      wrap.appendChild(track); wrap.appendChild(num);
+      tdProg.appendChild(wrap);
+      tr.appendChild(tdProg);
+
+      var tdSt = document.createElement("td");
+      var tag = document.createElement("span");
+      tag.className = "tag " + it.status;
+      tag.textContent = it.statusLabel;
+      tdSt.appendChild(tag);
+      if(it.manualStatus){
+        var m = document.createElement("span"); m.className = "manual"; m.textContent = "人工";
+        tdSt.appendChild(m);
+      }
+      tr.appendChild(tdSt);
+
+      var tdOps = document.createElement("td"); tdOps.className = "ops";
+      var bEdit = document.createElement("button"); bEdit.className = "link"; bEdit.textContent = "编辑";
+      bEdit.onclick = function(){ openModal(it); };
+      var bDel = document.createElement("button"); bDel.className = "link danger"; bDel.textContent = "删除";
+      bDel.onclick = function(){ removeItem(it); };
+      tdOps.appendChild(bEdit); tdOps.appendChild(document.createTextNode(" ")); tdOps.appendChild(bDel);
+      tr.appendChild(tdOps);
+
+      tb.appendChild(tr);
+    });
+    $("note").textContent = items.length
+      ? ("共 " + items.length + " 条，按计划完成时间升序排列。状态由计划时间与进度自动推导，逾期即刻显示为「已延期」。")
+      : "";
+  }
+
+  function td(text){
+    var d = document.createElement("td");
+    d.textContent = (text === null || text === undefined || text === "") ? "—" : text;
+    return d;
+  }
+
+  /* ---------- 表单 ---------- */
+  function toLocalInput(v){
+    if(!v) return "";
+    return String(v).replace("T"," ").slice(0,19);
+  }
+  function fromLocalInput(v){
+    if(!v) return null;
+    return v.replace(" ","T");
+  }
+
+  function openModal(item){
+    editingId = item ? item.id : null;
+    $("modal-title").textContent = item ? ("编辑交付项 · " + item.id) : "新增交付项";
+    // 状态选项：编辑时若已有人工覆盖，额外提供"恢复自动推导"
+    var fs = $("f-status");
+    fs.innerHTML = "";
+    var auto = document.createElement("option");
+    auto.value = ""; auto.textContent = "自动推导";
+    fs.appendChild(auto);
+    if(item && item.manualStatus){
+      var back = document.createElement("option");
+      back.value = "AUTO"; back.textContent = "恢复自动推导（清除人工指定）";
+      fs.appendChild(back);
+      $("f-status-hint").textContent = "当前已人工指定状态，选择「恢复自动推导」可清除";
+    } else {
+      $("f-status-hint").textContent = "留空则由计划时间与进度自动推导";
+    }
+    STATUS.forEach(function(s){
+      var o = document.createElement("option");
+      o.value = s.code; o.textContent = s.label;
+      fs.appendChild(o);
+    });
+    if(item){
+      $("f-phase").value = item.phaseName || "";
+      $("f-owner").value = item.owner || "";
+      $("f-progress").value = item.progressPercent;
+      $("f-start").value = toLocalInput(item.plannedStart);
+      $("f-end").value = toLocalInput(item.plannedEnd);
+      $("f-actual").value = toLocalInput(item.actualEnd);
+      $("f-status").value = "";
+    } else {
+      $("f-phase").value = "";
+      $("f-owner").value = "";
+      $("f-progress").value = 0;
+      $("f-start").value = "";
+      $("f-end").value = "";
+      $("f-actual").value = "";
+      $("f-status").value = "";
+    }
+    $("modal-bg").classList.add("open");
+  }
+
+  function closeModal(){
+    $("modal-bg").classList.remove("open");
+    editingId = null;
+  }
+
+  function collect(){
+    var progress = parseInt($("f-progress").value, 10);
+    if(isNaN(progress)) progress = 0;
+    return {
+      phaseName: $("f-phase").value.trim(),
+      owner: $("f-owner").value.trim(),
+      plannedStart: fromLocalInput($("f-start").value),
+      plannedEnd: fromLocalInput($("f-end").value),
+      actualEnd: fromLocalInput($("f-actual").value),
+      progressPercent: progress,
+      status: $("f-status").value
+    };
+  }
+
+  function save(){
+    var body = collect();
+    if(!body.phaseName){ toast("请填写交付阶段名称", "err"); return; }
+    if(!body.owner){ toast("请填写负责人", "err"); return; }
+    if(!body.plannedStart || !body.plannedEnd){ toast("请填写计划开始与完成时间", "err"); return; }
+    if(body.plannedEnd < body.plannedStart){ toast("计划完成时间不能早于计划开始时间", "err"); return; }
+    if(body.progressPercent < 0 || body.progressPercent > 100){ toast("进度百分比需在 0~100 之间", "err"); return; }
+
+    var opt = { method: editingId ? "PUT" : "POST",
+                headers: {"Content-Type":"application/json"},
+                body: JSON.stringify(body) };
+    var url = editingId ? (API + "/items/" + encodeURIComponent(editingId)) : (API + "/items");
+
+    $("btn-save").disabled = true;
+    req(url, opt).then(function(){
+      closeModal();
+      toast(editingId ? "已更新交付项" : "已新增交付项", "ok");
+      return refresh();
+    }).catch(function(e){
+      if(e.status === 202){
+        closeModal();
+        toast(e.message || "操作已提交审批", "warn");
+      } else {
+        toast(e.message || "保存失败", "err");
+      }
+    }).finally(function(){ $("btn-save").disabled = false; });
+  }
+
+  function removeItem(it){
+    if(!confirm("确认删除交付项「" + it.phaseName + "」？")) return;
+    req(API + "/items/" + encodeURIComponent(it.id), { method:"DELETE" }).then(function(){
+      toast("已删除交付项 " + it.id, "ok");
+      return refresh();
+    }).catch(function(e){
+      if(e.status === 202){ toast(e.message || "删除已提交审批", "warn"); }
+      else { toast(e.message || "删除失败", "err"); }
+    });
+  }
+
+  function refresh(){
+    return Promise.all([loadSummary(), loadItems()]);
+  }
+
+  /* ---------- 绑定 ---------- */
+  $("btn-new").onclick = function(){ openModal(null); };
+  $("btn-refresh").onclick = function(){ refresh().then(function(){ toast("已刷新", "ok"); }); };
+  $("btn-cancel").onclick = closeModal;
+  $("btn-save").onclick = save;
+  $("modal-bg").onclick = function(e){ if(e.target === this) closeModal(); };
+  $("filter").onchange = function(){ loadItems(); };
+  document.addEventListener("keydown", function(e){
+    if(e.key === "Escape") closeModal();
+  });
+
+  loadMeta().then(refresh).catch(function(e){ toast("看板加载失败：" + e.message, "err"); });
+})();
+</script>
+</body>
+</html>

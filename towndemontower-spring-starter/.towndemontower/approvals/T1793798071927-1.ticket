@@ -1,0 +1,13 @@
+id	T1793798071927-1
+taskId	default-task
+tool	deployService
+risk	R2
+impact	
+rollback	
+by	agent-default
+status	APPROVED
+createdAt	2026-11-04T13:14:31.927246400Z
+deadline	2026-11-04T14:14:31.927246400Z
+approver	human-1
+comment	同意
+decidedAt	2026-11-04T13:14:31.936268Z

@@ -1,0 +1,24 @@
+# Maven 构建输出
+target/
+**/target/
+
+# IDE 配置文件
+.idea/
+*.iml
+.vscode/
+*.swp
+*.swo
+
+# Java 编译输出
+*.class
+
+# 日志文件
+*.log
+
+# 操作系统文件
+.DS_Store
+Thumbs.db
+
+# 临时文件
+*.tmp
+*.bak

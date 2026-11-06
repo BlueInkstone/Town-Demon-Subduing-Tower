@@ -1,0 +1,13 @@
+id	T1793864316347-1
+taskId	T1
+tool	deployService
+risk	R2
+impact	effect
+rollback	rollback
+by	agent-ops
+status	PENDING
+createdAt	2026-11-05T07:38:36.348399800Z
+deadline	2026-11-05T08:38:36.348399800Z
+approver	
+comment	
+decidedAt	

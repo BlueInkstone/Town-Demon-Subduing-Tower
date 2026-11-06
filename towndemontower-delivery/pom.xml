@@ -1,0 +1,90 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-starter-parent</artifactId>
+        <version>3.2.5</version>
+        <relativePath/>
+    </parent>
+
+    <groupId>com.towndemontower</groupId>
+    <artifactId>towndemontower-delivery</artifactId>
+    <version>0.1.0</version>
+    <packaging>jar</packaging>
+
+    <name>Town Demon-Subduing Tower Delivery Board</name>
+    <description>交付进度看板模块：交付项管理（阶段/负责人/计划起止/实际完成/进度百分比/状态）、按状态筛选、整体进度汇总；写操作接入 core 治理链（审计哈希链 + 风险闸门）。</description>
+
+    <properties>
+        <java.version>21</java.version>
+        <!-- 本地仓库缺少 BOM 默认的 tomcat 10.1.19，锁到已缓存的 10.1.20 以保证离线可解析 -->
+        <tomcat.version>10.1.20</tomcat.version>
+        <!-- OpenAPI/Swagger UI：2.3.0 与 Spring Boot 3.2.x 匹配，本地仓库已缓存 -->
+        <springdoc.version>2.3.0</springdoc.version>
+        <!-- springdoc 传递依赖 jackson-dataformat-yaml（用于输出 YAML 契约），
+             BOM 默认的 2.15.4 本地缺失，锁到已缓存的 2.15.3 以保证离线可解析 -->
+        <jackson-bom.version>2.15.3</jackson-bom.version>
+    </properties>
+
+    <dependencies>
+        <!-- 治理内核 + Spring 薄适配层（core 装饰器链 / AOP / 自动配置） -->
+        <dependency>
+            <groupId>com.towndemontower</groupId>
+            <artifactId>towndemontower-spring-starter</artifactId>
+            <version>0.1.0</version>
+        </dependency>
+
+        <!-- REST API + 看板静态页 -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-web</artifactId>
+        </dependency>
+
+        <!-- OpenAPI 3 契约 + Swagger UI（在线可交互接口文档）。
+             2.3.0 是与 Spring Boot 3.2.x 匹配的版本；依赖已缓存于本地仓库，可离线解析。 -->
+        <dependency>
+            <groupId>org.springdoc</groupId>
+            <artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
+            <version>${springdoc.version}</version>
+        </dependency>
+
+        <!-- 测试 -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <configuration>
+                    <!-- 暴露方法参数名，便于治理链把意图实参映射为 IntentObject.args -->
+                    <parameters>true</parameters>
+                </configuration>
+            </plugin>
+            <!-- 可执行 jar：java -jar target/towndemontower-delivery-0.1.0.jar 直接启动演示。
+                 父 pom（spring-boot-starter-parent）已内置 repackage 执行，这里只需指定 mainClass，
+                 不重复声明 executions，否则会重复打包两次。 -->
+            <plugin>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-maven-plugin</artifactId>
+                <configuration>
+                    <mainClass>com.towndemontower.delivery.DeliveryBoardApplication</mainClass>
+                    <!-- 默认激活 demo profile：提供演示端口与演示数据播种开关，
+                         且不污染接入方应用自己的 application.properties -->
+                    <profiles>
+                        <profile>demo</profile>
+                    </profiles>
+                </configuration>
+            </plugin>
+        </plugins>
+    </build>
+</project>

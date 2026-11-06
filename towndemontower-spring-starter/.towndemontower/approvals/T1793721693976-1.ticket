@@ -1,0 +1,13 @@
+id	T1793721693976-1
+taskId	T1
+tool	deployService
+risk	R2
+impact	effect
+rollback	rollback
+by	agent-ops
+status	EXPIRED
+createdAt	2026-11-03T16:01:33.981838900Z
+deadline	2026-11-03T17:01:33.981838900Z
+approver	
+comment	timeout
+decidedAt	2026-11-04T04:16:17.338639900Z
