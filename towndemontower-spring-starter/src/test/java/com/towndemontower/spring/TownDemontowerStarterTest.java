@@ -9,10 +9,11 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 /**
- * [starter/test] Spring Boot 集成测试（真实 CI 用；本地 JDK 21 + surefire 3.2.5 有
- * LinkageError，离线验证请改用 {@link StarterDemo}）。
+ * [starter/test] Spring Boot 集成测试（真实 CI 用；使用 JDK 25 编译运行）。
  */
-@SpringBootTest(classes = {TownDemontowerAutoConfiguration.class, AgentSkillDemo.class, TestAopConfig.class})
+@SpringBootTest(
+        classes = {TownDemontowerAutoConfiguration.class, AgentSkillDemo.class, TestAopConfig.class},
+        properties = "towndemontower.permissions-bootstrap=ops:restart,data:delete,ops:deploy,plan:write")
 class TownDemontowerStarterTest {
 
     @Autowired

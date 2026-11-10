@@ -13,7 +13,7 @@
     <description>纯 Java AI Agent 治理核心：意图校验、模式白名单、R0-R3 风险闸门、装饰器链、哈希链审计、状态机。零 Spring 依赖，契约语言中立。</description>
 
     <properties>
-        <maven.compiler.release>21</maven.compiler.release>
+        <maven.compiler.release>25</maven.compiler.release>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     </properties>
 

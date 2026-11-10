@@ -56,10 +56,10 @@ IntentObject
 
 ```bash
 cd towndemontower-core
-# 用 JDK 21 直接编译运行（零 Maven 亦可）
-/c/Program\ Files/Java/jdk-21.0.12/bin/javac -d out $(find src/main/java src/test/java -name "*.java")
-/c/Program\ Files/Java/jdk-21.0.12/bin/java  -cp out com.towndemontower.DemoRunner     # 演示最小链路
-/c/Program\ Files/Java/jdk-21.0.12/bin/java  -cp out com.towndemontower.core.CoreTest  # 验收 34/34
+# 用 JDK 25 直接编译运行（零 Maven 亦可；请先将 JDK 25 配置到 PATH）
+javac -d out $(find src/main/java src/test/java -name "*.java")
+java -cp out com.towndemontower.DemoRunner     # 演示最小链路
+java -cp out com.towndemontower.core.CoreTest  # 验收 34/34
 
 # 或用 Maven
 mvn -q -pl towndemontower-core test

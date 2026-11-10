@@ -20,7 +20,7 @@
     <description>交付进度看板模块：交付项管理（阶段/负责人/计划起止/实际完成/进度百分比/状态）、按状态筛选、整体进度汇总；写操作接入 core 治理链（审计哈希链 + 风险闸门）。</description>
 
     <properties>
-        <java.version>21</java.version>
+        <java.version>25</java.version>
         <!-- 本地仓库缺少 BOM 默认的 tomcat 10.1.19，锁到已缓存的 10.1.20 以保证离线可解析 -->
         <tomcat.version>10.1.20</tomcat.version>
         <!-- OpenAPI/Swagger UI：2.3.0 与 Spring Boot 3.2.x 匹配，本地仓库已缓存 -->
