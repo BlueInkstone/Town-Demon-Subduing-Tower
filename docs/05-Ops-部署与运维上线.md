@@ -11,7 +11,7 @@
 Town Demon-Subduing Tower **不是独立程序**，是嵌入用户 Spring Boot 程序的治理 starter。本 Phase 0 交付的是**纯 Java 的 `towndemontower-core` 构件**：
 
 - 零外部依赖、零 Spring 依赖（`core` 内 `import org.springframework.*` 即违规，ArchUnit 卡点见 §6）。
-- 契约语言中立：IntentObject / 错误码 / Executor 接口均 JSON 可序列化；v2.0 首批已由 `towndemontower-sdk-python/` 与 `towndemontower-sdk-typescript/` 按同一契约对齐（见 `docs/08-版本任务清单.md`）。
+- 契约语言中立：IntentObject / 错误码 / Executor 接口均 JSON 可序列化；v2.0 首批已由 `towndemontower-sdk-python/` 与 `towndemontower-sdk-typescript/` 提供 REST 治理端点客户端；**进程内契约与审计链格式尚未统一**，静态对账见 `docs/35-跨语言契约对账.md`。
 - 实际生效入口：`Executor.execute(intent, ctx)` 装饰器链。
 
 > 注：`towndemontower-spring-starter`（薄适配层：@AgentSkill / AOP / AutoConfiguration / @Transactional / Outbox / WS）按 README 排期在 Phase 1 交付，本阶段仅给出接入契约与配置占位。
