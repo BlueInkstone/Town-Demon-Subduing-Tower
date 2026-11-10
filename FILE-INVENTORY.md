@@ -6,6 +6,8 @@
 - 纳入统计：**286** 个文件，合计 **1.75 MB**
 - 已排除的构建产物：**500** 个文件，合计 1,012.3 KB（主要为 `target/` 与 `out-*` 下的 `*.class` 与日志）
 
+> **补充（2026-11-10）**：本清单是 2026-11-04 的历史快照，未包含此后新增的 `towndemontower-sdk-python/`（15 个文件）与 `towndemontower-sdk-typescript/`（24 个文件，共 39 个，已纳入 git）。两份 SDK 的 `node_modules/`、`__pycache__/`、`.pytest_cache/`、`dist/` 等缓存与构建产物按 `.gitignore` 排除，不计入统计。当前进度以 `README.md`、`docs/08-版本任务清单.md` 为准。
+
 ## 一、按文件类型统计
 
 | 扩展名 | 类型 | 数量 | 合计大小 |

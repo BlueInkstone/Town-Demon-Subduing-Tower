@@ -4,8 +4,9 @@
 > 产品定位见 [docs/16-产品介绍.md](docs/16-产品介绍.md)，流程边界（哪些固定、哪些可配）见 [docs/14-流程设计说明.md](docs/14-流程设计说明.md)。
 
 本仓库按 **PM → Arch → Dev → QA → Ops** 五阶段顺序推进，每段交付物作为下一段输入，形成一条**完整可追溯的端到端实现链路**。
-当前已推进到 **v1.17**：治理内核（core）+ Spring 薄适配层（starter）+ 交付进度看板（delivery）+ Agent 注册表（agents），
-全仓 **1575 项测试通过**（47 个自运行器，全 rc=0）：core 774（682 + 审计写入吞吐压测 8 + 计划单轮转 29 + 同步暂存 55）、starter 341（237 + R4 用例 25 + 轮转 8 + 暂存 16 + 治理管理接口 50）、delivery 219、agents 241；全仓静态扫描 `files=263 violations=0 warnings=0`。v1.11 起"经过治理链"是**前置条件**而不是约定（`GovernancePass` 一次性令牌），
+当前 Java 主线已推进到 **v1.17**：治理内核（core）+ Spring 薄适配层（starter）+ 交付进度看板（delivery）+ Agent 注册表（agents）；
+**v2.0 首批**已交付多语言 SDK（`towndemontower-sdk-python/` 108/108、`towndemontower-sdk-typescript/` 91/91 单测通过，独立目录、不计入下方 Java 基线）。
+Java 主线全仓 **1575 项测试通过**（47 个自运行器，全 rc=0）：core 774（682 + 审计写入吞吐压测 8 + 计划单轮转 29 + 同步暂存 55）、starter 341（237 + R4 用例 25 + 轮转 8 + 暂存 16 + 治理管理接口 50）、delivery 219、agents 241；全仓静态扫描 `files=263 violations=0 warnings=0`。v1.11 起"经过治理链"是**前置条件**而不是约定（`GovernancePass` 一次性令牌），
 "绕过注解直调"在**构建期**即失败（`BypassScanMain`，零依赖）；v1.12 起 shell 类工具可以声明
 **命令模板**（`commandTemplate`），形状不符直接拒绝，不再靠黑名单猜危险；v1.13 起需要"先批计划再动手"的工具
 可以声明 `requiresPlanApproval`，未批准直接返回 `PLAN_APPROVAL_REQUIRED`，审批动作本身进审计链；v1.14 起计划单
@@ -63,6 +64,10 @@ java -cp out com.towndemontower.core.CoreTest  # 验收 34/34
 
 # 或用 Maven
 mvn -q -pl towndemontower-core test
+
+# 多语言 SDK（各自独立目录，无需 JDK）
+cd ../towndemontower-sdk-python && python -m pytest -q        # 108/108
+cd ../towndemontower-sdk-typescript && npm test               # 91/91（8 个 jest 套件）
 ```
 
 ## 模块结构
@@ -108,6 +113,16 @@ towndemontower-agents/src/main/java/com/towndemontower/agents/       （v1.4 Age
 ├── web/        AgentController, View/Request/SummaryView/ExceptionHandler（仅 REST，无页面）
 ├── config/     AgentsAutoConfiguration, AgentsOpenApiConfiguration, AgentsProperties
 └── AgentsApplication.java         可独立启动的演示入口（8081）
+
+towndemontower-sdk-python/                    （v2.0 Python SDK，108/108）
+├── src/towndemontower/  contract / executor / policy / audit / decorator / client / rest
+└── tests/               7 个测试文件（pytest）
+
+towndemontower-sdk-typescript/               （v2.0 TypeScript SDK，91/91）
+├── src/                 contract / executor / policy / audit / decorator / client / rest / index
+├── tests/               8 个测试文件（jest）
+├── examples/            basic / advanced / rest 三个可运行示例
+└── package.json         npm run build / test
 ```
 
 ## 排期与进度
@@ -138,7 +153,7 @@ towndemontower-agents/src/main/java/com/towndemontower/agents/       （v1.4 Age
 - **v1.17 ✅** 治理管理接口（后端）：14 个端点覆盖 R3 人工审批、执行计划审批、审计查询/校验、同步暂存区运维；
   开关默认关闭，复用 `metrics-token` 做 `X-Governance-Token` 鉴权；模式切换/权限授予/放行 R3 等**不开放**。
   全仓回归 **1575/1575**，扫描 `files=263 violations=0 warnings=0`。见 `docs/33-治理管理接口.md`。
-- **v2.0 📋** Python/JS SDK、多 Agent 编排、多模态预处理。
+- **v2.0 🚧（首批已交付）** 多语言 SDK：Python SDK（108/108）与 TypeScript SDK（91/91）已落地并实测通过，各自对齐 core 契约（意图对象 / 风险闸门 / 命令模板 / SHA-256 审计链 / 治理通行证 / REST 治理端点客户端）。**仍排后 📋**：多 Agent 编排、多模态预处理、跨语言契约一致性联调。见 `docs/08-版本任务清单.md`、`docs/27-测试清单.md`。
 
 完整任务清单见 `docs/08-版本任务清单.md`。
 
