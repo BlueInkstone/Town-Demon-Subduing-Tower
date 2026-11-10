@@ -33,6 +33,24 @@ out-*/
 cp.txt
 sources.txt
 
+# Python SDK 产物
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+.coverage
+coverage/
+*.egg-info/
+.venv/
+venv/
+
+# TypeScript SDK 产物
+node_modules/
+dist/
+dist-examples/
+build/
+*.tsbuildinfo
+
 # 操作系统文件
 .DS_Store
 Thumbs.db
