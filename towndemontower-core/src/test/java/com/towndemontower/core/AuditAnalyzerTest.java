@@ -46,6 +46,7 @@ public class AuditAnalyzerTest {
         testInsufficientSamples();       // AC-5
         testDegradedPaths();             // AC-6
         testSdkAliasesNotCounted();      // FR-2 / docs/36 L-2
+        testNormalizeAliases();          // 方向 D：跨语言统计口径打通
         testWindowAndSkipped();          // FR-4 / 覆盖率
         testMasking();                   // AC-10
         testReaderRoundTripAndTamper();  // FR-5 / AC-10
@@ -177,6 +178,38 @@ public class AuditAnalyzerTest {
         check("NEED_MORE_INFO 沿用 AuditDecorator 口径算拒绝",
                 analyze(List.of(rec(1, ErrorCodes.NEED_MORE_INFO, "A"),
                         rec(2, "OK", "A"), rec(3, "OK", "A")), true, c).agents.get(0).denied == 1);
+    }
+
+    /** 方向 D：显式开启后 SDK 别名按规范码统计；默认关闭保持 D-3「只认 Java 规范码」。 */
+    private static void testNormalizeAliases() {
+        List<AuditRecord> records = List.of(
+                rec(1, "APPROVAL_REQUIRED", "AGT-0001"),
+                rec(2, "APPROVAL_REQUIRED", "AGT-0001"),
+                rec(3, "RISK_REJECTED", "AGT-0001"),
+                rec(4, "CAPABILITY_EXCEEDED", "AGT-0001"),
+                rec(5, "OK", "AGT-0001"));
+        AnalyzerConfig base = enabled(2, 2, 1, 0.9);
+
+        BehaviorReport off = analyze(records, true, base);
+        check("默认关闭时别名不计专项",
+                off.agents.get(0).pendingApproval == 0 && off.agents.get(0).r3Denied == 0);
+        check("默认开关为 false", !AnalyzerConfig.defaults().normalizeAliases);
+
+        BehaviorReport on = analyze(records, true, base.withNormalizeAliases(true));
+        check("打通后 APPROVAL_REQUIRED 计 PENDING_APPROVAL",
+                on.agents.get(0).pendingApproval == 2);
+        check("打通后 RISK_REJECTED 计 R3_DENIED", on.agents.get(0).r3Denied == 1);
+        check("打通后别名仍按统一口径计拒绝", on.agents.get(0).denied == 2);
+        check("打通后报告注明口径",
+                on.notes.stream().anyMatch(n -> n.contains("统计口径已打通")));
+        check("打通不改变窗口与样本数",
+                on.analyzableRecords == 5 && on.totalRecords == 5);
+
+        // §6.3 未评审的码保持原值，只算普通拒绝
+        BehaviorReport unmapped = analyze(List.of(
+                rec(1, "EXECUTION_ERROR", "A"), rec(2, "OK", "A"), rec(3, "OK", "A")),
+                true, base.withNormalizeAliases(true));
+        check("未映射码仍保留为普通拒绝", unmapped.agents.get(0).denied == 1);
     }
 
     /** FR-4：窗口按最近 N 条；非 SKILL_INVOKED / 形状不符计入跳过与覆盖率分母。 */

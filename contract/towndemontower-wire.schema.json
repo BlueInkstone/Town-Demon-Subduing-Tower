@@ -1,0 +1,117 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/xiekun0322/Town-Demon-Subduing-Tower/main/contract/towndemontower-wire.schema.json",
+  "title": "Town Demon-Subduing Tower · 跨语言 Wire Schema",
+  "description": "方向 D 定稿的跨语言结构契约（2026-11-11）。这是结构定义字典，没有单一根对象：使用方按 $defs 引用具体结构。错误码与统计口径的唯一权威是同目录 error-codes.json。",
+  "status": "ratified",
+  "ratifiedAt": "2026-11-11",
+  "$comment": "来源 docs/35 §6.1/§6.2。本文件只定结构，不代表三语言实现已经符合；L2 进程内契约仍未统一，审计链格式见 docs/35 §6.5 且须单独评审。",
+  "x-wire-rules": {
+    "naming": "camelCase；Python 内部可用 snake_case，但 to_dict/from_dict 必须双向映射",
+    "optional": "可选字段统一用 null，不用 undefined；缺失字段按默认值补全并显式写出",
+    "enum": "枚举一律用字符串值（R0..R3、PENDING/APPROVED/DENIED/EXPIRED、ARCHITECT_PLANNING/DEV_EXECUTION/AUDIT_REVIEWING）",
+    "time": "ISO-8601 UTC 且带 Z",
+    "number": "confidence 用 JSON number（0.0-1.0）；seq 用整数",
+    "canonicalJson": {
+      "keyOrder": "lexicographic",
+      "separators": [",", ":"],
+      "noSpaces": true,
+      "ensureAscii": false,
+      "encoding": "UTF-8"
+    },
+    "errorCodes": "见 contract/error-codes.json；输出一律用规范码，别名仅允许输入",
+    "languageLocalOnly": ["text", "force", "invocationId", "description", "auditId", "ticketId", "mac"],
+    "additionalProperties": "false —— 语言本地扩展不得出现在 wire 中"
+  },
+  "$defs": {
+    "RiskLevel": {
+      "type": "string",
+      "enum": ["R0", "R1", "R2", "R3"],
+      "description": "未知或空 risk 一律按 R2 处理（fail-closed，Java 语义）"
+    },
+    "ApprovalStatus": {
+      "type": "string",
+      "enum": ["PENDING", "APPROVED", "DENIED", "EXPIRED"]
+    },
+    "AgentMode": {
+      "type": "string",
+      "enum": ["ARCHITECT_PLANNING", "DEV_EXECUTION", "AUDIT_REVIEWING"],
+      "description": "NORMAL 不是合法值（SDK 现状，需迁移）"
+    },
+    "ErrorCode": {
+      "type": "string",
+      "minLength": 1,
+      "description": "规范码集合见 contract/error-codes.json canonical；成功固定 OK。别名只允许输入，输出必须已归一。"
+    },
+    "IntentObject": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["tool", "args", "confidence", "reason", "expectedEffect", "rollbackHint"],
+      "properties": {
+        "tool": { "type": "string", "minLength": 1 },
+        "args": { "type": "object", "default": {}, "additionalProperties": true },
+        "confidence": { "type": "number", "minimum": 0.0, "maximum": 1.0 },
+        "reason": { "type": ["string", "null"], "description": "含「建议」/suggest/you may consider 的文本应被拒收" },
+        "expectedEffect": { "type": ["string", "null"] },
+        "rollbackHint": { "type": ["string", "null"] }
+      }
+    },
+    "SkillDescriptor": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "risk", "requiredPerms", "capabilities", "requiredArgs", "sideEffect", "sandboxPolicy", "commandTemplate", "requiresPlanApproval"],
+      "properties": {
+        "name": { "type": "string", "minLength": 1 },
+        "risk": { "$ref": "#/$defs/RiskLevel" },
+        "requiredPerms": { "type": "array", "items": { "type": "string" }, "default": [] },
+        "capabilities": { "type": "array", "items": { "type": "string" }, "default": [] },
+        "requiredArgs": { "type": "array", "items": { "type": "string" }, "default": [] },
+        "sideEffect": { "type": "boolean" },
+        "sandboxPolicy": { "type": ["string", "null"] },
+        "commandTemplate": { "type": ["string", "null"], "default": null, "description": "null 或空白均视为未声明" },
+        "requiresPlanApproval": { "type": "boolean", "default": false }
+      }
+    },
+    "ExecutionContext": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["sessionId", "taskId", "tenantId", "agentId", "ownerUserId", "tainted", "mode", "cancellationToken"],
+      "properties": {
+        "sessionId": { "type": ["string", "null"] },
+        "taskId": { "type": ["string", "null"] },
+        "tenantId": { "type": ["string", "null"] },
+        "agentId": { "type": ["string", "null"] },
+        "ownerUserId": { "type": ["string", "null"] },
+        "tainted": { "type": "boolean", "default": false },
+        "mode": { "$ref": "#/$defs/AgentMode" },
+        "cancellationToken": { "description": "不透明句柄，实现相关；wire 上只保证可空" }
+      }
+    },
+    "SkillResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["success", "code", "message", "output", "approvalTicketId"],
+      "properties": {
+        "success": { "type": "boolean" },
+        "code": { "$ref": "#/$defs/ErrorCode" },
+        "message": { "type": ["string", "null"] },
+        "output": { "description": "任意 JSON 值或 null" },
+        "approvalTicketId": { "type": ["string", "null"] }
+      }
+    },
+    "ApprovalTicket": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "taskId", "tool", "riskLevel", "impactNote", "rollbackPlan", "status"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "taskId": { "type": ["string", "null"] },
+        "tool": { "type": "string" },
+        "riskLevel": { "$ref": "#/$defs/RiskLevel" },
+        "impactNote": { "type": ["string", "null"] },
+        "rollbackPlan": { "type": ["string", "null"] },
+        "status": { "$ref": "#/$defs/ApprovalStatus" }
+      }
+    }
+  }
+}

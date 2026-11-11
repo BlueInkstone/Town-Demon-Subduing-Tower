@@ -63,3 +63,16 @@ export type {
   FetchLike,
   RestErrorConfig,
 } from "./rest";
+
+// 方向 D / 定稿口径：跨语言错误码归一与统一统计口径
+export {
+  CANONICAL_CODES,
+  SUCCESS_CODE,
+  STAT_PENDING_APPROVAL,
+  STAT_R3_DENIED,
+  ERROR_CODE_ALIASES,
+  UNMAPPED_REQUIRES_REVIEW,
+  canonicalCode,
+  isCanonicalCode,
+  countsAsDenied,
+} from "./codes";

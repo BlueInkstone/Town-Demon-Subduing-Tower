@@ -65,6 +65,10 @@ public final class AuditAnalyzerMain {
                     if (++i >= args.length) { usage("--denial-rate 需要 0.0..1.0"); return; }
                     config = config.withDenialRateThreshold(doubleArg(args[i], "--denial-rate"));
                 }
+                case "--normalize-aliases" -> {
+                    // 方向 D：显式打通跨语言统计口径；不带此参数时保持 D-3「只认 Java 规范码」
+                    config = config.withNormalizeAliases(true);
+                }
                 case "-h", "--help" -> {
                     usage(null);
                     return;
@@ -142,7 +146,8 @@ public final class AuditAnalyzerMain {
         System.err.println("用法: java -cp out com.towndemontower.core.analysis.AuditAnalyzerMain");
         System.err.println("        --file <audit.log> [--out <report.json>]");
         System.err.println("        [--window N] [--min-samples N] [--pending-threshold N]");
-        System.err.println("        [--r3-threshold N] [--denial-rate 0.0..1.0]");
+        System.err.println("        [--r3-threshold N] [--denial-rate 0.0..1.0] [--normalize-aliases]");
+        System.err.println("--normalize-aliases：按 contract/error-codes.json 把 SDK 别名归一到规范码后统计（默认关闭）。");
         System.err.println("密钥仅从环境变量 TOWNDEMONTOWER_AUDIT_KEY 读取；M1 只读，不写审计。");
         if (error != null) System.exit(2);
     }

@@ -1,6 +1,7 @@
 package com.towndemontower.core.analysis;
 
 import com.towndemontower.core.audit.AuditRecord;
+import com.towndemontower.core.contract.ErrorCodeCatalog;
 import com.towndemontower.core.contract.ErrorCodes;
 import com.towndemontower.core.contract.TimeProvider;
 
@@ -27,8 +28,6 @@ public final class AuditBehaviorAnalyzer {
     public static final String RULE_VERSION = "M1-1";
 
     private static final String ACTION_SKILL_INVOKED = "SKILL_INVOKED";
-    /** 成功码在 Java core 里是 SkillResult.success 的字面量，未收进 ErrorCodes。 */
-    private static final String CODE_OK = "OK";
     private static final String UNATTRIBUTED = "(unattributed)";
 
     private final AnalyzerConfig config;
@@ -94,8 +93,8 @@ public final class AuditBehaviorAnalyzer {
                 a.streak = 0;
             }
             if (ErrorCodes.R3_DENIED.equals(p.code)) a.r3Denied++;
-            // 与 AuditDecorator 一致：PENDING_APPROVAL 单独计，不算拒绝；其余非 OK 都算拒绝
-            if (!CODE_OK.equals(p.code) && !ErrorCodes.PENDING_APPROVAL.equals(p.code)) a.denied++;
+            // 统一拒绝口径（contract/error-codes.json statistics），三语言一致
+            if (ErrorCodeCatalog.countsAsDenied(p.code)) a.denied++;
         }
 
         int total = records.size() - from;
@@ -142,7 +141,9 @@ public final class AuditBehaviorAnalyzer {
         }
 
         List<String> notes = new ArrayList<>();
-        notes.add("只认 Java 规范码；SDK 别名不计入 PENDING_APPROVAL / R3_DENIED 专项统计");
+        notes.add(config.normalizeAliases
+                ? "统计口径已打通：SDK 别名按 contract/error-codes.json 归一到规范码"
+                : "只认 Java 规范码；SDK 别名不计入 PENDING_APPROVAL / R3_DENIED 专项统计（--normalize-aliases 可打通）");
         notes.add("窗口按最近 " + config.windowRecords + " 条记录：Java 审计记录不含时间戳");
         notes.add("报告不含审计原文、参数值与凭据；agentId 已脱敏");
         notes.add("链校验失败或样本不足时不产出任何降权结论");
@@ -161,12 +162,14 @@ public final class AuditBehaviorAnalyzer {
      * {@code tool|code|task=...|mode=...|agent=...|owner=...}。
      * 其它 action 或形状不符的记录一律跳过（计入覆盖率分母），不猜测、不抛异常。
      */
-    private static Parsed parse(AuditRecord r) {
+    private Parsed parse(AuditRecord r) {
         if (r == null || !ACTION_SKILL_INVOKED.equals(r.action) || r.payload == null) return null;
         String[] parts = r.payload.split("\\|", -1);
         if (parts.length < 2) return null;
         String code = parts[1].trim();
         if (code.isEmpty()) return null;
+        // 方向 D：显式开启时按 contract/error-codes.json 归一；默认保持 D-3「只认 Java 规范码」
+        if (config.normalizeAliases) code = ErrorCodeCatalog.canonicalize(code);
         String agent = UNATTRIBUTED;
         // 从第三段起找 agent=；owner= 与参数值一律不进报告
         for (int i = 2; i < parts.length; i++) {

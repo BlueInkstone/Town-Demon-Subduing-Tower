@@ -18,6 +18,17 @@ from .policy import RiskGate, DefaultRiskGate
 from .audit import AuditStore, AuditRecord
 from .decorator import GovernancePass
 from .client import TownDemontowerClient
+from .codes import (
+    CANONICAL_CODES,
+    ALIASES,
+    UNMAPPED_REQUIRES_REVIEW,
+    SUCCESS_CODE,
+    STAT_PENDING_APPROVAL,
+    STAT_R3_DENIED,
+    canonical_code,
+    is_canonical,
+    counts_as_denied,
+)
 from .rest import (
     GovernanceRestClient,
     RestClientConfig,
@@ -55,6 +66,16 @@ __all__ = [
     "GovernancePass",
     # Client
     "TownDemontowerClient",
+    # Cross-language error codes (方向 D / 定稿口径)
+    "CANONICAL_CODES",
+    "ALIASES",
+    "UNMAPPED_REQUIRES_REVIEW",
+    "SUCCESS_CODE",
+    "STAT_PENDING_APPROVAL",
+    "STAT_R3_DENIED",
+    "canonical_code",
+    "is_canonical",
+    "counts_as_denied",
     # REST
     "GovernanceRestClient",
     "RestClientConfig",

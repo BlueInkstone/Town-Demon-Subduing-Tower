@@ -72,6 +72,10 @@ cd ../towndemontower-sdk-typescript && npm test               # 91/91（8 个 je
 # 方向 C / M1 只读行为报告（离线 CLI，默认关闭，运行即一次显式启用）
 java -cp out com.towndemontower.core.analysis.AuditAnalyzerMain \
      --file <audit.log> --out report.json --min-samples 5     # 不写审计，只出脱敏报告
+#     加 --normalize-aliases：按 contract/error-codes.json 归一 SDK 别名后统计
+
+# 方向 D 跨语言口径一致性校验（零依赖，可直接当 CI 门禁）
+python contract/verify_codes.py                              # 21/21
 ```
 
 ## 模块结构
@@ -171,7 +175,7 @@ towndemontower-sdk-typescript/               （v2.0 TypeScript SDK，91/91）
 | A · 治理引擎可靠性 | 内部故障强拦截与专属错误码、启动自检覆盖核对、健康检查与探活告警、Fail-closed 对外承诺 | 📋 未来方向 |
 | B · 上下文与数据安全 | 意图级快照与状态回溯、LocalPromptGuard 提示词哨兵、一键红队演练 | 📋 未来方向 |
 | C · 审计驱动的动态防御 | **M1 只读行为报告已实现**（[docs/36-方向C-需求说明.md](docs/36-方向C-需求说明.md) §12）：默认关闭、离线 CLI、只认 Java 规范码、脱敏、链校验前置；M2 建议单 + 人工批准仍待拍板。冲突与方案见 `docs/08` §C | 🚧 M1 已交付，M2/M3 待拍板 |
-| D · 跨语言契约一致性 | 静态对账已完成、结论不通过；先定稿 wire schema，再写 Java / Python / TS 同一输入的 golden 用例。详见 [docs/35-跨语言契约对账.md](docs/35-跨语言契约对账.md) | ⚠️ 待统一基准 |
+| D · 跨语言契约一致性 | **wire schema 与错误码口径已定稿**（`contract/towndemontower-wire.schema.json`、`contract/error-codes.json`），三语言统计口径已打通；结构与审计链实现仍未统一，下一步是 golden 用例。详见 [docs/35-跨语言契约对账.md](docs/35-跨语言契约对账.md) | 🚧 基准已定稿，实现待统一 |
 
 ## 构建期自检（v1.11）
 
