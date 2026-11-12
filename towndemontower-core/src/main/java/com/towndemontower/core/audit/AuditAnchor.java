@@ -1,5 +1,8 @@
 package com.towndemontower.core.audit;
 
+import java.util.Collections;
+import java.util.Arrays;
+
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -44,7 +47,36 @@ import java.util.List;
 final class AuditAnchor {
 
     /** 锚点快照。 */
-    record Anchor(long records, String hash) {
+    static final class Anchor {
+        private final long records;
+        private final String hash;
+
+        Anchor(long records, String hash) {
+            this.records = records;
+            this.hash = hash;
+        }
+
+        public long records() { return records; }
+        public String hash() { return hash; }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            Anchor that = (Anchor) o;
+            return java.util.Objects.equals(records, that.records)
+                    && java.util.Objects.equals(hash, that.hash);
+        }
+
+        @Override
+        public int hashCode() {
+            return java.util.Objects.hash(records, hash);
+        }
+
+        @Override
+        public String toString() {
+            return "Anchor[records=" + records + ", hash=" + hash + "]";
+        }
     }
 
     private final Path path;
@@ -67,7 +99,7 @@ final class AuditAnchor {
             new java.util.LinkedHashMap<>();
 
     AuditAnchor(Path path, byte[] key) {
-        this(path, key, List.of(), false);
+        this(path, key, Arrays.asList(), false);
     }
 
     AuditAnchor(Path path, byte[] key, List<AnchorReplica> replicas, boolean replicaRequired) {
@@ -78,7 +110,7 @@ final class AuditAnchor {
                 AuditSyncSpool spool) {
         this.path = path;
         this.key = key;
-        this.replicas = replicas == null ? List.of() : List.copyOf(replicas);
+        this.replicas = replicas == null ? Arrays.asList() : new ArrayList<>(replicas);
         this.replicaRequired = replicaRequired;
         this.spool = spool;
     }
@@ -104,7 +136,7 @@ final class AuditAnchor {
         if (!exists()) return null;
         String text;
         try {
-            text = Files.readString(path, StandardCharsets.UTF_8).trim();
+            text = new String(Files.readAllBytes(path), StandardCharsets.UTF_8).trim();
         } catch (IOException e) {
             throw new IllegalStateException("审计锚点读取失败：" + path, e);
         }
@@ -131,7 +163,7 @@ final class AuditAnchor {
             Path parent = path.toAbsolutePath().getParent();
             if (parent != null) Files.createDirectories(parent);
             Path tmp = path.resolveSibling(path.getFileName() + ".tmp");
-            Files.writeString(tmp, line, StandardCharsets.UTF_8);
+            Files.write(tmp, (line).getBytes(StandardCharsets.UTF_8));
             try {
                 Files.move(tmp, path, StandardCopyOption.REPLACE_EXISTING,
                         StandardCopyOption.ATOMIC_MOVE);
@@ -208,7 +240,7 @@ final class AuditAnchor {
     /** 副本的最近一次已知状态（启动核对 + 之后的每次推送）；未核对过则为空表。 */
     List<AnchorReplicaState> replicaStates() {
         synchronized (pushErrors) {
-            return List.copyOf(latest.values());
+            return new ArrayList<>(latest.values());
         }
     }
 
@@ -286,6 +318,6 @@ final class AuditAnchor {
 
     private static String describe(RuntimeException e) {
         String m = e.getMessage();
-        return (m == null || m.isBlank()) ? e.getClass().getSimpleName() : m;
+        return (m == null || m.trim().isEmpty()) ? e.getClass().getSimpleName() : m;
     }
 }

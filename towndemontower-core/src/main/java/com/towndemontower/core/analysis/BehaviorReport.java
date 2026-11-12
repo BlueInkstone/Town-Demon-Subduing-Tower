@@ -1,4 +1,6 @@
 package com.towndemontower.core.analysis;
+import java.util.Arrays;
+import java.util.ArrayList;
 
 import com.towndemontower.core.audit.AuditCrypto;
 
@@ -48,16 +50,16 @@ public final class BehaviorReport {
         this.coverageRate = coverageRate;
         this.chainValid = chainValid;
         this.evidenceSufficient = evidenceSufficient;
-        this.agents = List.copyOf(agents);
-        this.findings = List.copyOf(findings);
-        this.notes = List.copyOf(notes);
+        this.agents = new ArrayList<>(agents);
+        this.findings = new ArrayList<>(findings);
+        this.notes = new ArrayList<>(notes);
     }
 
     /** 构造一个「无结论」的空报告：默认关闭 / 证据不足 / 退化都走这里。 */
     public static BehaviorReport empty(String status, String ruleVersion, String generatedAt,
                                        AnalyzerConfig config, boolean chainValid, String note) {
         return new BehaviorReport(status, ruleVersion, generatedAt, config.windowRecords,
-                0, 0, 0, 0.0, chainValid, false, List.of(), List.of(), List.of(note));
+                0, 0, 0, 0.0, chainValid, false, Arrays.asList(), Arrays.asList(), Arrays.asList(note));
     }
 
     /**
@@ -107,12 +109,12 @@ public final class BehaviorReport {
 
     private static String strArray(List<String> values, int indent) {
         StringBuilder sb = new StringBuilder("[");
-        String pad = " ".repeat(indent);
+        String pad = new String(new char[indent]).replace('\0', ' ');
         for (int i = 0; i < values.size(); i++) {
             if (i > 0) sb.append(',');
             sb.append("\n").append(pad).append("\"").append(esc(values.get(i))).append("\"");
         }
-        if (!values.isEmpty()) sb.append("\n").append(" ".repeat(Math.max(0, indent - 2)));
+        if (!values.isEmpty()) sb.append("\n").append(new String(new char[Math.max(0, indent - 2)]).replace('\0', ' '));
         return sb.append(']').toString();
     }
 
@@ -123,15 +125,25 @@ public final class BehaviorReport {
         for (int i = 0; i < s.length(); i++) {
             char c = s.charAt(i);
             switch (c) {
-                case '"' -> sb.append("\\\"");
-                case '\\' -> sb.append("\\\\");
-                case '\n' -> sb.append("\\n");
-                case '\r' -> sb.append("\\r");
-                case '\t' -> sb.append("\\t");
-                default -> {
+                case '"':
+                    sb.append("\\\"");
+                    break;
+                case '\\':
+                    sb.append("\\\\");
+                    break;
+                case '\n':
+                    sb.append("\\n");
+                    break;
+                case '\r':
+                    sb.append("\\r");
+                    break;
+                case '\t':
+                    sb.append("\\t");
+                    break;
+                default:
                     if (c < 0x20) sb.append(String.format("\\u%04x", (int) c));
                     else sb.append(c);
-                }
+                    break;
             }
         }
         return sb.toString();
@@ -160,7 +172,7 @@ public final class BehaviorReport {
             this.denialRate = denialRate;
             this.maxConsecutivePending = maxConsecutivePending;
             this.flagged = flagged;
-            this.reasons = List.copyOf(reasons);
+            this.reasons = new ArrayList<>(reasons);
         }
     }
 }

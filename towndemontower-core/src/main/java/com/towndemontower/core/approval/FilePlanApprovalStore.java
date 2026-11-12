@@ -1,4 +1,5 @@
 package com.towndemontower.core.approval;
+import java.util.Arrays;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -63,7 +64,7 @@ public final class FilePlanApprovalStore implements PlanApprovalStore {
             Path parent = file.toAbsolutePath().getParent();
             if (parent != null) Files.createDirectories(parent);
             if (!Files.exists(file)) {
-                Files.writeString(file, HEADER + "\n", StandardCharsets.UTF_8,
+                Files.write(file, (HEADER + "\n").getBytes(StandardCharsets.UTF_8),
                         StandardOpenOption.CREATE);
             }
         } catch (IOException e) {
@@ -89,7 +90,7 @@ public final class FilePlanApprovalStore implements PlanApprovalStore {
                 if (maxBytes > 0 && Files.exists(file) && Files.size(file) > maxBytes) {
                     rotate();
                 }
-                Files.writeString(file, line, StandardCharsets.UTF_8, StandardOpenOption.APPEND);
+                Files.write(file, (line).getBytes(StandardCharsets.UTF_8), StandardOpenOption.APPEND);
             } catch (IOException e) {
                 throw new IllegalStateException("计划写入失败：" + file, e);
             }
@@ -105,13 +106,13 @@ public final class FilePlanApprovalStore implements PlanApprovalStore {
 
     private List<PlanApproval> loadUnlocked() {
         try {
-            if (!Files.exists(file)) return List.of();
+            if (!Files.exists(file)) return Arrays.asList();
             List<String> lines = Files.readAllLines(file, StandardCharsets.UTF_8);
             List<PlanApproval> out = new ArrayList<>();
             int n = 0;
             for (String line : lines) {
                 n++;
-                if (line == null || line.isBlank() || line.startsWith("#")) continue;
+                if (line == null || line.trim().isEmpty() || line.startsWith("#")) continue;
                 out.add(decode(line, n));
             }
             return out;
@@ -140,7 +141,7 @@ public final class FilePlanApprovalStore implements PlanApprovalStore {
             sb.append(encode(p)).append('\n');
         }
         Path tmp = file.resolveSibling(file.getFileName() + ".tmp");
-        Files.writeString(tmp, sb.toString(), StandardCharsets.UTF_8,
+        Files.write(tmp, (sb.toString()).getBytes(StandardCharsets.UTF_8),
                 StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING);
 
         Path archive = archivePath();
@@ -220,7 +221,7 @@ public final class FilePlanApprovalStore implements PlanApprovalStore {
     }
 
     private static List<PlanStep> decodeSteps(String enc, int lineNo) {
-        if (enc.isEmpty()) return List.of();
+        if (enc.isEmpty()) return Arrays.asList();
         List<PlanStep> out = new ArrayList<>();
         for (String pair : enc.split(",", -1)) {
             String[] p = pair.split(":", -1);

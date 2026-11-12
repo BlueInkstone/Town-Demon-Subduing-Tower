@@ -144,8 +144,8 @@ public final class CommandTemplate {
         }
 
         if (ts.isEmpty()) throw new IllegalArgumentException("命令模板不能为空");
-        this.tokens = List.copyOf(ts);
-        this.paramNames = List.copyOf(names);
+        this.tokens = new ArrayList<>(ts);
+        this.paramNames = new ArrayList<>(names);
     }
 
     /** 模板原文。 */
@@ -183,7 +183,7 @@ public final class CommandTemplate {
     public static String commandOf(IntentObject intent) {
         if (intent == null || intent.args == null) return null;
         Object v = intent.args.get(COMMAND_ARG);
-        return v instanceof String s ? s : null;
+        return v instanceof String ? (String) v : null;
     }
 
     // ------------------------------------------------------------------

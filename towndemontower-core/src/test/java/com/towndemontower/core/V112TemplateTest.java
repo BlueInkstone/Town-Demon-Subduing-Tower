@@ -90,8 +90,8 @@ public class V112TemplateTest {
         check("注入-选项槽位正常", unit.match("journalctl -u nginx").matched);
         check("注入-选项槽位塞标志被拒", !unit.match("journalctl -u -f").matched);
 
-        check("边界-超长命令被拒", !t.match("systemctl restart " + "a".repeat(4000)).matched);
-        check("边界-超长参数被拒", !t.match("systemctl restart " + "a".repeat(300)).matched);
+        check("边界-超长命令被拒", !t.match("systemctl restart " + new String(new char[4000]).replace('\0', 'a')).matched);
+        check("边界-超长参数被拒", !t.match("systemctl restart " + new String(new char[300]).replace('\0', 'a')).matched);
     }
 
     static void restPlaceholder() {

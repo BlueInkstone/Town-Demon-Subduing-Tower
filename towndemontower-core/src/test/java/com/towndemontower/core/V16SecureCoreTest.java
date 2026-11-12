@@ -33,6 +33,15 @@ import java.util.Map;
  */
 public class V16SecureCoreTest {
 
+    private static java.util.Map<String, Object> map(Object... kv) {
+        java.util.Map<String, Object> m = new java.util.HashMap<>();
+        for (int i = 0; i + 1 < kv.length; i += 2) {
+            m.put((String) kv[i], kv[i + 1]);
+        }
+        return m;
+    }
+
+
     static int pass = 0, fail = 0;
 
     public static void main(String[] args) throws Exception {
@@ -95,7 +104,7 @@ public class V16SecureCoreTest {
     static void failClosed() {
         HashChainAuditStore audit = new HashChainAuditStore();
         Executor e = new RejectAllExecutor(audit);
-        SkillResult r = e.execute(new IntentObject("writeFile", Map.of("path", "/tmp/x"), 1.0, "r", "e", "rb"),
+        SkillResult r = e.execute(new IntentObject("writeFile", map("path", "/tmp/x"), 1.0, "r", "e", "rb"),
                 new ExecutionContext("s", "t1", "t", "agent-a", "o", false, AgentMode.DEV_EXECUTION));
 
         check("熔断-拒绝执行", !r.success && "GOVERNANCE_DISABLED".equals(r.code));
@@ -106,16 +115,16 @@ public class V16SecureCoreTest {
 
     /* ---------- ③ 输入校验（此处显式传 8192，测的是校验器契约，不是 starter 默认值） ---------- */
     static void inputValidation() {
-        IntentArgsValidator.validate(Map.of("path", "/tmp/a.txt", "content", "hello"),
+        IntentArgsValidator.validate(map("path", "/tmp/a.txt", "content", "hello"),
                 8192, 64, true, true);
         check("校验-正常参数放行", true);
 
-        check("校验-超长拒绝", rejects(Map.of("content", "x".repeat(9000))));
-        check("校验-控制字符拒绝", rejects(Map.of("content", "abc\u0000def")));
-        check("校验-换行允许", !rejects(Map.of("content", "line1\nline2")));
-        check("校验-路径穿越拒绝", rejects(Map.of("path", "../../etc/passwd")));
-        check("校验-Windows穿越拒绝", rejects(Map.of("path", "..\\..\\windows\\system32")));
-        check("校验-普通相对路径放行", !rejects(Map.of("path", "./a/b.txt")));
+        check("校验-超长拒绝", rejects(map("content", new String(new char[9000]).replace('\0', 'x'))));
+        check("校验-控制字符拒绝", rejects(map("content", "abc\u0000def")));
+        check("校验-换行允许", !rejects(map("content", "line1\nline2")));
+        check("校验-路径穿越拒绝", rejects(map("path", "../../etc/passwd")));
+        check("校验-Windows穿越拒绝", rejects(map("path", "..\\..\\windows\\system32")));
+        check("校验-普通相对路径放行", !rejects(map("path", "./a/b.txt")));
 
         Map<String, Object> many = new HashMap<>();
         for (int i = 0; i < 65; i++) many.put("k" + i, "v");
@@ -135,7 +144,7 @@ public class V16SecureCoreTest {
                 new HashChainAuditStore(), new HumanApprovalPolicy());
 
         SkillResult r = e.execute(new IntentObject("writeFile",
-                        Map.of("path", "/tmp/x", "content", "c"), 0.9, "r", "e", "rb"),
+                        map("path", "/tmp/x", "content", "c"), 0.9, "r", "e", "rb"),
                 new ExecutionContext("s", "t2", "t", "a", "o", false, AgentMode.DEV_EXECUTION));
 
         check("错误-返回内部错误码", !r.success && "INTERNAL_ERROR".equals(r.code));

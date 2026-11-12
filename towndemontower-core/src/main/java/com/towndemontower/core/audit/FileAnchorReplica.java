@@ -1,5 +1,9 @@
 package com.towndemontower.core.audit;
 
+
+
+import java.util.HashSet;
+import java.util.Arrays;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -88,7 +92,7 @@ public final class FileAnchorReplica implements AnchorReplica {
                     + "\tat=" + snapshot.at() + "\n";
             Path parent = ledger.toAbsolutePath().getParent();
             if (parent != null) Files.createDirectories(parent);
-            Files.writeString(ledger, line, StandardCharsets.UTF_8, StandardOpenOption.CREATE,
+            Files.write(ledger, (line).getBytes(StandardCharsets.UTF_8), StandardOpenOption.CREATE,
                     StandardOpenOption.APPEND);
             restrictPermissions(ledger);
             lastMac = mac;
@@ -120,7 +124,7 @@ public final class FileAnchorReplica implements AnchorReplica {
             int index = 0;
             for (String line : lines) {
                 index++;
-                if (line == null || line.isBlank()) continue;
+                if (line == null || line.trim().isEmpty()) continue;
                 AnchorSnapshot s = AnchorSnapshot.parse(line, "副本 " + ledger + " 第 " + index + " 行");
                 if (s.records() < prevRecords) {
                     throw new IllegalStateException("锚点副本被回滚：" + ledger
@@ -169,8 +173,8 @@ public final class FileAnchorReplica implements AnchorReplica {
 
     private static void restrictPermissions(Path f) {
         try {
-            Set<PosixFilePermission> perms = Set.of(PosixFilePermission.OWNER_READ,
-                    PosixFilePermission.OWNER_WRITE);
+            Set<PosixFilePermission> perms = new HashSet<>(Arrays.asList(PosixFilePermission.OWNER_READ,
+                    PosixFilePermission.OWNER_WRITE));
             Files.setPosixFilePermissions(f, perms);
         } catch (UnsupportedOperationException | IOException ignored) {
             // Windows 不支持 POSIX 权限，交由目录 ACL

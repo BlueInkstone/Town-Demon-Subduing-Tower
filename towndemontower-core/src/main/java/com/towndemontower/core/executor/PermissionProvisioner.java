@@ -1,4 +1,5 @@
 package com.towndemontower.core.executor;
+import java.util.ArrayList;
 
 import com.towndemontower.core.audit.AuditStore;
 
@@ -63,6 +64,6 @@ public interface PermissionProvisioner {
 
     /** 只读能力，便于把"看"和"改"分给不同对象（例如只给看板读端口）。 */
     static List<String> describe(PermissionEngine engine, String agentId) {
-        return List.copyOf(engine.permissionsOf(agentId));
+        return new ArrayList<>(engine.permissionsOf(agentId));
     }
 }

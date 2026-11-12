@@ -1,4 +1,5 @@
 package com.towndemontower.core.context;
+import java.util.Arrays;
 
 import com.towndemontower.core.routing.ModelProfile;
 
@@ -31,7 +32,7 @@ public final class PromptAssembly {
         this.dynamic = dynamic;
         this.cacheKey = cacheKey;
         this.model = model;
-        this.tools = tools == null ? List.of() : tools;
+        this.tools = tools == null ? Arrays.asList() : tools;
         this.cacheHit = cacheHit;
     }
 

@@ -53,7 +53,7 @@ public class V17GateKeyEnvTest {
                 GateScriptRunner.classify("changeme-changeme-changeme-changeme")
                         == GateScriptRunner.KeyStatus.WEAK);
         check("密钥-单字符重复判为WEAK",
-                GateScriptRunner.classify("a".repeat(64)) == GateScriptRunner.KeyStatus.WEAK);
+                GateScriptRunner.classify(new String(new char[64]).replace('\0', 'a')) == GateScriptRunner.KeyStatus.WEAK);
         check("密钥-前后空白被裁剪后仍合格",
                 GateScriptRunner.classify("  0123456789abcdef0123456789abcdef  ")
                         == GateScriptRunner.KeyStatus.OK);

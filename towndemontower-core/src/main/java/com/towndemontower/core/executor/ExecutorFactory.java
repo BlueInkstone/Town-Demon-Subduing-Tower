@@ -98,4 +98,37 @@ public final class ExecutorFactory {
         e = new AuditDecorator(e, audit, metrics, stateStore);
         return e;
     }
+
+    /**
+     * 网关"只裁决不执行"链（docs/38 决策①）。
+     *
+     * <p>复用前几层裁决（Audit → ModeToolPolicy → IntentFormat → Schema → Capability
+     * → Permission → RiskGate → TaintCheck），但<b>跳过 SandboxedToolExecutor 执行层与
+     * SnapshotDecorator 快照层</b>：网关不执行、没有业务态可回滚，这两层在此无意义。
+     * 终点用 {@link VerdictTerminalExecutor} 返回"允许"。</p>
+     *
+     * <p>本方法<b>不调用</b> {@link com.towndemontower.core.decorator.GovernancePass#configure}
+     * 也不经过发牌点——令牌只在 SandboxedToolExecutor 发出，
+     * 跳过它即不会误发 GovernancePass 令牌、不会误写快照。</p>
+     *
+     * @param approvalCenter 审批中心，可 null（null 时 R2 走内存自增单号、无超时）
+     */
+    public static Executor buildVerdictOnly(SkillRegistry registry,
+                                            ModeToolPolicy modePolicy,
+                                            RiskGate riskGate,
+                                            PermissionEngine permissionEngine,
+                                            ApprovalPolicy approvalPolicy,
+                                            ApprovalCenter approvalCenter,
+                                            AuditStore audit) {
+        Executor e = new VerdictTerminalExecutor();
+        e = new TaintCheckDecorator(e, registry);
+        e = new RiskGateDecorator(e, riskGate, approvalPolicy, registry, approvalCenter, null);
+        e = new PermissionDecorator(e, permissionEngine, registry);
+        e = new CapabilityDecorator(e, registry);
+        e = new SchemaDecorator(e, registry);
+        e = new IntentFormatDecorator(e);
+        e = new ModeToolPolicyDecorator(e, modePolicy);
+        e = new AuditDecorator(e, audit);
+        return e;
+    }
 }

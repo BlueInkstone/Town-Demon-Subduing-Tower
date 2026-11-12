@@ -204,8 +204,51 @@ def main():
     check("统一链参考实现自检通过", proc.returncode == 0,
           (proc.stdout or "")[-200:])
 
+    # GW-01：网关协议 golden（docs/38 改动④ / 测试清单 GW-01）
+    check_gateway_golden()
+
     print(f"\nRESULT: {_passed}/{_passed + _failed} passed")
     return 0 if _failed == 0 else 1
+
+
+def check_gateway_golden():
+    """GW-01：同一 IntentObject → 同一裁决响应，协议层可复算（docs/38 改动④）。
+
+    注意：本段只校验<b>协议层</b>——golden 文件结构合法、期望码是规范/待评审码、
+    且与本地确定性预言一致、文件可复算。真正的裁决计算由 Java 侧的
+    GatewayVerdictChainTest 跑 core 只裁决链复算，避免 Python 侧重复实现裁决逻辑而漂移。
+    """
+    golden = load_json(CONTRACT / "gateway-golden.json")
+    check("gateway-golden.json 已定稿", golden.get("status") == "ratified")
+    cases = golden.get("cases", [])
+    check("gateway golden 至少 6 条用例", len(cases) >= 6, f"实际 {len(cases)}")
+
+    # 本地确定性预言：协议层能复算的简单映射（与 Java GatewayVerdictChainTest 同源）
+    oracle = {
+        "allow-runCompile": "OK",
+        "deny-deleteData": "R3_DENIED",
+        "pending-deployService": "PENDING_APPROVAL",
+        "invalid-suggestion": "INTENT_FORMAT_INVALID",
+        "missing-tool": "INTENT_FORMAT_INVALID",
+        "low-confidence": "NEED_MORE_INFO",
+        "oversized-arg": "INPUT_REJECTED",
+    }
+    codes = load_json(CONTRACT / "error-codes.json")
+    canonical = set(codes["canonical"]) | set(codes["unmappedRequiresReview"])
+    for c in cases:
+        cid = c["id"]
+        exp = c["expected"]
+        check(f"golden[{cid}] 结构含 intent+expected",
+              isinstance(c.get("intent"), dict) and isinstance(exp, dict))
+        check(f"golden[{cid}] 期望码合法（规范码或待评审码）",
+              exp.get("code") in canonical, str(exp.get("code")))
+        if cid in oracle:
+            check(f"golden[{cid}] 预言一致（{oracle[cid]}）",
+                  exp.get("code") == oracle[cid],
+                  f"期望 {oracle[cid]} 实得 {exp.get('code')}")
+    # 可复算：同一份 golden 两次加载结果一致
+    again = load_json(CONTRACT / "gateway-golden.json")
+    check("gateway golden 可复算（两次加载一致）", again == golden)
 
 
 if __name__ == "__main__":

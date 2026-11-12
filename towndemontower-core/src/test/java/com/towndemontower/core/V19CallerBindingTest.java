@@ -1,5 +1,9 @@
 package com.towndemontower.core;
 
+import java.util.Collections;
+import java.util.stream.Collectors;
+import java.util.Arrays;
+
 import com.towndemontower.core.auth.ApiCallerRegistry;
 import com.towndemontower.core.auth.CallerAgentBindings;
 import com.towndemontower.core.auth.CallerContext;
@@ -76,7 +80,7 @@ public class V19CallerBindingTest {
         eq("解析-name为null返回null", b.agentFor(null), null);
         eq("解析-状态OK", b.status(), CallerAgentBindings.Status.OK);
         check("解析-非空即严格", b.strict());
-        eq("解析-keySet", b.callers(), List.of("ops", "ci"));
+        eq("解析-keySet", b.callers(), Arrays.asList("ops", "ci"));
 
         // 分隔符宽容：逗号 / 分号 / 空白都当分隔
         eq("解析-分号分隔", CallerAgentBindings.parse("a:AGT-1;b:AGT-2").size(), 2);
@@ -100,7 +104,7 @@ public class V19CallerBindingTest {
         check("非法-有被拒条目", !b.rejected().isEmpty());
         eq("非法-状态PARTIAL", b.status(), CallerAgentBindings.Status.PARTIAL);
         check("非法-拒绝摘要不含原因以外的原文", b.rejected().stream()
-                .noneMatch(r -> r == null || r.isBlank()));
+                .noneMatch(r -> r == null || r.trim().isEmpty()));
 
         // 全不合格 → 空表 + WEAK（有配置错误的嫌疑）
         CallerAgentBindings weak = CallerAgentBindings.parse("x,y,z");
@@ -135,8 +139,8 @@ public class V19CallerBindingTest {
                 "ops:8f3c9e1b5d2048a6c3a9e7d1b5f0c8a2,ci:1a9d7b5f3c1e04862b8d6a4f2e0c9b7d");
         CallerAgentBindings b = CallerAgentBindings.parse("ops:AGT-0001,ghost:AGT-0002");
 
-        eq("孤儿-有令牌无绑定", b.callersWithoutBinding(registry), List.of("ci"));
-        eq("孤儿-有绑定无令牌", b.callersWithoutToken(registry), List.of("ghost"));
+        eq("孤儿-有令牌无绑定", b.callersWithoutBinding(registry), Arrays.asList("ci"));
+        eq("孤儿-有绑定无令牌", b.callersWithoutToken(registry), Arrays.asList("ghost"));
         eq("孤儿-都无时不报", CallerAgentBindings.parse("ops:AGT-1,ci:AGT-2")
                 .callersWithoutBinding(registry).size(), 0);
         eq("孤儿-空表时不报有绑定无令牌", CallerAgentBindings.none()
@@ -180,7 +184,7 @@ public class V19CallerBindingTest {
     static void auditAttribution() {
         HashChainAuditStore store = new HashChainAuditStore();
         AuditDecorator decorator = new AuditDecorator((intent, ctx) -> SkillResult.success("done"), store);
-        IntentObject intent = new IntentObject("agents.registerAgent", java.util.Map.of(),
+        IntentObject intent = new IntentObject("agents.registerAgent", java.util.Collections.emptyMap(),
                 1.0, "注册", "改注册表", "回滚");
 
         ExecutionContext bound = new ExecutionContext("s1", "t1", "tenant-default",
@@ -193,7 +197,7 @@ public class V19CallerBindingTest {
 
         List<String> payloads = store.all().stream()
                 .filter(r -> "SKILL_INVOKED".equals(r.action))
-                .map(r -> r.payload).toList();
+                .map(r -> r.payload).collect(Collectors.toList());
         eq("审计-记录数", payloads.size(), 2);
         check("审计-含绑定Agent", payloads.get(0).contains("agent=AGT-0001"));
         check("审计-含调用者", payloads.get(0).contains("owner=ops"));

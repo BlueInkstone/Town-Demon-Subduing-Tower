@@ -67,9 +67,13 @@ public class AuditDecorator implements Executor {
             return r;
         } catch (RuntimeException ex) {
             String code = map(ex);
+            // 与正常分支保持同一组列：tool|code|task=..|mode=..|agent=..|owner=..
+            // 异常类名以前插在第 3 列，导致这一行比其它行多一列、且缺 mode=——
+            // 按固定列解析（AuditBehaviorAnalyzer 的注释就是这么写的）会在异常行错位。
+            // 现在统一把异常类名放到最后一列，前缀列的含义与顺序在两类分支上一致。
             audit.appendAuto("SKILL_INVOKED",
-                    intent.tool + "|" + code + "|" + ex.getClass().getSimpleName() + "|task=" + ctx.taskId
-                            + attribution(ctx));
+                    intent.tool + "|" + code + "|task=" + ctx.taskId + "|mode=" + ctx.mode
+                            + attribution(ctx) + "|error=" + ex.getClass().getSimpleName());
             record(ctx, code);
             return SkillResult.denied(code, safeMessage(code, ex));
         }
@@ -105,7 +109,7 @@ public class AuditDecorator implements Executor {
             return "internal error（详情见审计记录，不在响应中暴露）";
         }
         String m = ex.getMessage();
-        if (m == null || m.isBlank()) return code;
+        if (m == null || m.trim().isEmpty()) return code;
         String oneLine = m.replace('\n', ' ').replace('\r', ' ');
         return oneLine.length() > 200 ? oneLine.substring(0, 200) + "…" : oneLine;
     }

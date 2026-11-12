@@ -236,7 +236,7 @@ public class PlanApprovalService {
     public List<PlanApproval> all() {
         List<PlanApproval> out = new ArrayList<>(byId.values());
         out.sort(Comparator.comparing((PlanApproval p) -> p.requestedAt).thenComparing(p -> p.id));
-        return List.copyOf(out);
+        return new ArrayList<>(out);
     }
 
     /**

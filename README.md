@@ -6,7 +6,7 @@
 
 本仓库按 **PM → Arch → Dev → QA → Ops** 五阶段顺序推进，每段交付物作为下一段输入，形成一条**完整可追溯的端到端实现链路**。
 当前 Java 主线已推进到 **v1.17**：治理内核（core）+ Spring 薄适配层（starter）+ 交付进度看板（delivery）+ Agent 注册表（agents）；
-**v2.0 首批**已交付多语言 SDK（`towndemontower-sdk-python/` 108/108、`towndemontower-sdk-typescript/` 91/91 单测通过，独立目录、不计入下方 Java 基线）。
+**v2.0（2026-11-12 形态重定义）**：从「多语言各写一套治理实现」改为「一份 Java 裁决服务 + 一份 JSON 协议」。网关服务已可运行（本地 JRE 8 实测，分级/鉴权/审计落盘见 [docs/39-网关接入指南.md](docs/39-网关接入指南.md)，该文 §8 列了尚不支持的六项，接入前请先读）。原 Python / TypeScript SDK 已归档、不再维护。
 Java 主线全仓 **1575 项测试通过**（47 个自运行器，全 rc=0）：core 774（682 + 审计写入吞吐压测 8 + 计划单轮转 29 + 同步暂存 55）、starter 341（237 + R4 用例 25 + 轮转 8 + 暂存 16 + 治理管理接口 50）、delivery 219、agents 241；全仓静态扫描 `files=263 violations=0 warnings=0`。v1.11 起"经过治理链"是**前置条件**而不是约定（`GovernancePass` 一次性令牌），
 "绕过注解直调"在**构建期**即失败（`BypassScanMain`，零依赖）；v1.12 起 shell 类工具可以声明
 **命令模板**（`commandTemplate`），形状不符直接拒绝，不再靠黑名单猜危险；v1.13 起需要"先批计划再动手"的工具
@@ -37,6 +37,10 @@ Controller 不再为取 `now()` 注入业务 Service（构建期 `CP10-R4` 归�
 - **core 纯 Java、零 Spring**：`core` 内禁止 `import org.springframework.*`；契约语言中立（JSON、禁 Optional/CompletableFuture/Java 序列化）。
 - **R0 放行 / R1 轻确认 / R2 人工 / R3 默认拒绝**（带 --force 也不放行）。
 - **可审计、可快照、可回滚、可急停**：写前快照三样，审计追加写 + SHA-256 哈希链，急停取消在途 Tool 调用。
+- **编译/运行基线只有两档**：`core` / `gateway` = **Java 8**（class 52，JRE 8 实测可跑）；
+  `starter` / `delivery` / `agents` = **Java 17**（class 61，Spring Boot 3.2.5 的下限）。
+  **不要抬到 21 / 25**：Spring Boot 3.2.5 内嵌 ASM 读不了 class 69，应用会在扫描自动配置类时
+  `ClassFormatException` 起不来（本项目踩过）。
 
 ## 最小链路（已运行验证）
 
@@ -66,19 +70,18 @@ java -cp out com.towndemontower.core.CoreTest  # 验收 34/34
 # 或用 Maven
 mvn -q -pl towndemontower-core test
 
-# 多语言 SDK（各自独立目录，无需 JDK）
-cd ../towndemontower-sdk-python && python -m pytest -q        # 108/108
-cd ../towndemontower-sdk-typescript && npm test               # 91/91（8 个 jest 套件）
-
 # 方向 C / M1 只读行为报告（离线 CLI，默认关闭，运行即一次显式启用）
 java -cp out com.towndemontower.core.analysis.AuditAnalyzerMain \
      --file <audit.log> --out report.json --min-samples 5     # 不写审计，只出脱敏报告
-#     加 --normalize-aliases：按 contract/error-codes.json 归一 SDK 别名后统计
+#     加 --normalize-aliases：按 contract/error-codes.json 归一别名后统计
 
-# 方向 D 跨语言口径 / wire 结构 / 审计链格式一致性（零依赖，可直接当 CI 门禁）
-python contract/verify_codes.py                              # 45/45
-python contract/audit_chain.py --verify                      # 24/24（统一链 golden 与 v1 分派）
+# 权威协议 / wire 结构一致性（零依赖，可直接当 CI 门禁）
+python contract/verify_codes.py                              # 结构与错误码口径 32/32
 java -cp out com.towndemontower.core.SkillResultWireTest     # 28/28（wire 结构 golden）
+
+# （历史）多语言 SDK 已归档，不再计入 CI；见 docs/38
+# cd ../towndemontower-sdk-python && python -m pytest -q        # 126 passed（历史基线）
+# cd ../towndemontower-sdk-typescript && npm test               # 111 passed（历史基线）
 ```
 
 ## 模块结构
@@ -125,15 +128,22 @@ towndemontower-agents/src/main/java/com/towndemontower/agents/       （v1.4 Age
 ├── config/     AgentsAutoConfiguration, AgentsOpenApiConfiguration, AgentsProperties
 └── AgentsApplication.java         可独立启动的演示入口（8081）
 
-towndemontower-sdk-python/                    （v2.0 Python SDK，108/108）
+towndemontower-gateway/                       （网关形态，可运行；见 docs/39）
+├── POST /api/evaluate   独立运行的裁决服务（JDK 内置 HttpServer，无 Spring；thin jar + lib/）
+├── python/              @inkarmor_guard 薄客户端（标准库，零依赖）
+└── Dockerfile           镜像定义（按 thin jar 结构改写，未实测）
+
+towndemontower-sdk-python/                    ⚠️ 已归档（v2.0，126 passed 历史基线），不再维护
 ├── src/towndemontower/  contract / executor / policy / audit / decorator / client / rest
 └── tests/               7 个测试文件（pytest）
 
-towndemontower-sdk-typescript/               （v2.0 TypeScript SDK，91/91）
+towndemontower-sdk-typescript/               ⚠️ 已归档（v2.0，111 passed 历史基线），不再维护
 ├── src/                 contract / executor / policy / audit / decorator / client / rest / index
 ├── tests/               8 个测试文件（jest）
 ├── examples/            basic / advanced / rest 三个可运行示例
 └── package.json         npm run build / test
+
+（任意语言客户端：网关形态下不发布 SDK，只给 HTTP 示例；Python 薄包 `@inkarmor_guard` ≤200 行见 docs/38）
 ```
 
 ## 排期与进度
@@ -164,7 +174,10 @@ towndemontower-sdk-typescript/               （v2.0 TypeScript SDK，91/91）
 - **v1.17 ✅** 治理管理接口（后端）：14 个端点覆盖 R3 人工审批、执行计划审批、审计查询/校验、同步暂存区运维；
   开关默认关闭，复用 `metrics-token` 做 `X-Governance-Token` 鉴权；模式切换/权限授予/放行 R3 等**不开放**。
   全仓回归 **1575/1575**，扫描 `files=263 violations=0 warnings=0`。见 `docs/33-治理管理接口.md`。
-- **v2.0 🚧（首批已交付）** 多语言 SDK：Python SDK（108/108）与 TypeScript SDK（91/91）已落地并实测通过，覆盖意图对象 / 风险闸门 / 命令模板 / SHA-256 审计链 / 治理通行证 / REST 治理端点客户端。**REST 治理端点契约已对齐；进程内治理契约与审计链格式尚未统一**（静态对账结论见 `docs/35-跨语言契约对账.md`）。**仍排后 📋**：多 Agent 编排、多模态预处理、跨语言契约统一。见 `docs/08-版本任务清单.md`、`docs/27-测试清单.md`。
+- **v2.0 🚧（形态重定义，2026-11-12）** 产品形态从「多语言各写一套治理实现」改为「**一份 Java 裁决服务 + 一份 JSON 协议**」：网关形态（`POST /api/evaluate`）+ ≤200 行 Python 薄包 `@inkarmor_guard`，其余语言只给 HTTP 示例、不维护 SDK。原 Python/TypeScript SDK（126/111 历史基线）已归档不再维护。范围基线见 `docs/38-网关形态改造范围.md`。
+  **已可运行**：网关服务、Python 薄包、协议 golden 均已落地并在本地实测（分级、鉴权、审计落盘；接入见 `docs/39-网关接入指南.md`）。
+  **已补齐**：入口层拒绝（鉴权失败、非法 JSON、请求体超限等）也写审计；新增 `GET /api/health` 探活（不写审计）；白名单与注册表对齐；审计行格式统一。
+  **尚未完成**：R2 审批单无查询/批准端点，进程重启即丢（需先拍板是否新增端点）；并发只排队不限流；镜像未验证。逐项列在 `docs/39` §8。
 
 完整任务清单见 `docs/08-版本任务清单.md`。
 
@@ -175,10 +188,10 @@ towndemontower-sdk-typescript/               （v2.0 TypeScript SDK，91/91）
 
 | 方向 | 内容 | 状态 |
 |---|---|---|
-| A · 治理引擎可靠性 | 内部故障强拦截与专属错误码、启动自检覆盖核对、健康检查与探活告警、Fail-closed 对外承诺 | 🗓 已排期 |
-| B · 上下文与数据安全 | 意图级快照与状态回溯、提示词哨兵、一键红队演练 | 🗓 已排期 |
-| C · 审计驱动的动态防御 | **只读行为报告已实现**（[docs/36-方向C-需求说明.md](docs/36-方向C-需求说明.md) §12）：默认关闭、离线 CLI、只认 Java 规范码、脱敏、链校验前置；**降权建议单已批准并排期**，需架构设计先行；**后台自动收紧明确不做**。冲突与方案见 `docs/08` §C | 🗓 建议单待架构设计 |
-| D · 跨语言契约一致性 | **wire schema 与错误码口径已定稿**（`contract/`）、三语言统计口径打通、**`SkillResult` wire 结构统一**、**审计链格式定稿 + 迁移方案可评审**（[docs/37-审计链统一迁移方案.md](docs/37-审计链统一迁移方案.md)）；格式定稿 ≠ 实现符合，三语言审计写入侧仍待施工。详见 [docs/35-跨语言契约对账.md](docs/35-跨语言契约对账.md) | 🗓 已排期，写入侧待单独评审后施工 |
+| A · 治理引擎可靠性 | 网关形态下优先级上升：裁决链内部异常转明确拒绝响应、网关启动自检、健康检查与探活告警、Fail-closed 对外承诺 | 🗓 已排期 |
+| B · 上下文与数据安全 | 请求级留证快照（网关不执行，无业务态可回滚）、提示词哨兵、一键红队演练 | 🗓 已排期 |
+| C · 审计驱动的动态防御 | **只读行为报告已实现**（[docs/36-方向C-需求说明.md](docs/36-方向C-需求说明.md) §12）：默认关闭、离线 CLI、只认 Java 规范码、脱敏、链校验前置；**降权建议单已批准并排期**（作用域「仅已接入网关的请求」），需架构设计先行；**后台自动收紧明确不做**。冲突与方案见 `docs/08` §C | 🗓 建议单待架构设计 |
+| **网关形态（新）** | 一份 Java 裁决服务 + 一份 JSON 协议 + ≤200 行 Python 薄包，其余语言只给 HTTP 示例、不维护 SDK；范围基线见 [docs/38-网关形态改造范围.md](docs/38-网关形态改造范围.md)，接入与局限见 [docs/39-网关接入指南.md](docs/39-网关接入指南.md) | 🚧 服务可运行、审计覆盖入口层；审批单闭环与限流、镜像验证待补 |
 
 ## 构建期自检（v1.11）
 

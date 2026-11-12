@@ -1,5 +1,9 @@
 package com.towndemontower.core;
 
+import java.nio.file.Paths;
+import java.util.stream.Collectors;
+import java.util.Arrays;
+
 import com.towndemontower.core.approval.FilePlanApprovalStore;
 import com.towndemontower.core.approval.PlanApproval;
 import com.towndemontower.core.approval.PlanApprovalService;
@@ -94,7 +98,7 @@ public class V115PlanRotationTest {
         Path dir = tmp("replay");
         Path log = dir.resolve("plans.log");
         FilePlanApprovalStore store = new FilePlanApprovalStore(log, 1200);
-        PlanArtifact planned = PlanArtifact.of("修复两个文件", List.of(
+        PlanArtifact planned = PlanArtifact.of("修复两个文件", Arrays.asList(
                 new PlanStep("applyPatch", "改 A"),
                 new PlanStep("runTest", "跑 B")));
 
@@ -182,7 +186,7 @@ public class V115PlanRotationTest {
         Path log = dir.resolve("plans.log");
         FilePlanApprovalStore store = new FilePlanApprovalStore(log, 40);
         store.save(pending("C1", "task1"));
-        Files.writeString(log, "not-a-valid-record\n", StandardCharsets.UTF_8,
+        Files.write(log, ("not-a-valid-record\n").getBytes(StandardCharsets.UTF_8),
                 StandardOpenOption.APPEND);
         long sizeBefore = Files.size(log);
         boolean threw = false;
@@ -275,21 +279,21 @@ public class V115PlanRotationTest {
     }
 
     static Path tmp(String name) throws Exception {
-        Path base = Path.of("target", "v115-rotation");
+        Path base = Paths.get("target", "v115-rotation");
         Files.createDirectories(base);
         return Files.createTempDirectory(base, name + "-");
     }
 
     static long recordLines(Path log) throws Exception {
         try (Stream<String> lines = Files.lines(log, StandardCharsets.UTF_8)) {
-            return lines.filter(l -> !l.isBlank() && !l.startsWith("#")).count();
+            return lines.filter(l -> !l.trim().isEmpty() && !l.startsWith("#")).count();
         }
     }
 
     static List<Path> listArchives(Path dir) throws Exception {
         try (Stream<Path> files = Files.list(dir)) {
             return files.filter(p -> p.getFileName().toString().endsWith(".archive"))
-                    .toList();
+                    .collect(Collectors.toList());
         }
     }
 

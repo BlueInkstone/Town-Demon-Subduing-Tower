@@ -2,8 +2,10 @@
 """
 方向 D · 统一审计链参考实现（chainVersion=2），零第三方依赖。
 
-权威格式定义见 contract/audit-chain.json。本文件是三语言共用的**算式基准**，
-不是生产写入侧实现；用途：
+权威格式定义见 contract/audit-chain.json。本文件是**算式基准**，
+不是生产写入侧实现。
+⚠️ 2026-11-12 网关形态拍板后：三语言互验任务已作废（docs/38），本文件仅保留为 Java 侧格式参考；
+不再用于三语言绑定覆盖校验。用途：
 
     python contract/audit_chain.py --emit     # 输出 golden 向量（JSON）
     python contract/audit_chain.py --verify  # 自检：算例 + golden + 三语言绑定覆盖

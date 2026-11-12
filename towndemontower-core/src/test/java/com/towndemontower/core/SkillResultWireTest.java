@@ -1,4 +1,5 @@
 package com.towndemontower.core;
+import java.util.Arrays;
 
 import com.towndemontower.core.contract.ErrorCodeCatalog;
 import com.towndemontower.core.contract.SkillResult;
@@ -20,7 +21,7 @@ import java.util.Map;
 public class SkillResultWireTest {
 
     private static final List<String> WIRE_FIELDS =
-            List.of("success", "code", "message", "output", "approvalTicketId");
+            Arrays.asList("success", "code", "message", "output", "approvalTicketId");
 
     private static int passed = 0;
     private static int failed = 0;
@@ -56,7 +57,7 @@ public class SkillResultWireTest {
     /** golden: ok-object-output */
     private static void testOkWithObjectOutput() {
         Map<String, Object> nested = new LinkedHashMap<>();
-        nested.put("items", List.of(1, 2));
+        nested.put("items", Arrays.asList(1, 2));
         nested.put("label", "batch");
         Map<String, Object> w = SkillResult.success(nested).toWire();
         check("复杂 output 原样透传", nested.equals(w.get("output")));

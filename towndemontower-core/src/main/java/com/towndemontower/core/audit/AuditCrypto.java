@@ -1,4 +1,5 @@
 package com.towndemontower.core.audit;
+import com.towndemontower.core.util.Hex;
 
 import com.towndemontower.core.security.SecretPolicy;
 
@@ -7,8 +8,6 @@ import javax.crypto.spec.SecretKeySpec;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
-import java.util.HexFormat;
-
 /**
  * [core] 审计链的哈希算法与密钥解析（V1.9 / I4）。
  *
@@ -68,7 +67,7 @@ public final class AuditCrypto {
         try {
             Mac mac = Mac.getInstance(HMAC_ALG);
             mac.init(new SecretKeySpec(key, HMAC_ALG));
-            return HexFormat.of().formatHex(mac.doFinal(input.getBytes(StandardCharsets.UTF_8)));
+            return Hex.formatHex(mac.doFinal(input.getBytes(StandardCharsets.UTF_8)));
         } catch (Exception e) {
             throw new IllegalStateException("audit chaining failed", e);
         }
@@ -80,7 +79,7 @@ public final class AuditCrypto {
         try {
             Mac mac = Mac.getInstance(HMAC_ALG);
             mac.init(new SecretKeySpec(key, HMAC_ALG));
-            return HexFormat.of().formatHex(mac.doFinal(input.getBytes(StandardCharsets.UTF_8)));
+            return Hex.formatHex(mac.doFinal(input.getBytes(StandardCharsets.UTF_8)));
         } catch (Exception e) {
             throw new IllegalStateException("anchor mac failed", e);
         }
@@ -91,7 +90,7 @@ public final class AuditCrypto {
         try {
             byte[] b = MessageDigest.getInstance("SHA-256")
                     .digest(input.getBytes(StandardCharsets.UTF_8));
-            return HexFormat.of().formatHex(b);
+            return Hex.formatHex(b);
         } catch (NoSuchAlgorithmException e) {
             throw new IllegalStateException(e);
         }

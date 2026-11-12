@@ -1,5 +1,7 @@
 package com.towndemontower.core.bypass;
 
+
+import java.util.Collections;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -90,9 +92,9 @@ public final class BypassScanner {
         ScanResult(int files, List<BypassFinding> violations,
                    List<BypassFinding> warnings, List<BypassFinding> suppressions) {
             this.files = files;
-            this.violations = List.copyOf(violations);
-            this.warnings = List.copyOf(warnings);
-            this.suppressions = List.copyOf(suppressions);
+            this.violations = new ArrayList<>(violations);
+            this.warnings = new ArrayList<>(warnings);
+            this.suppressions = new ArrayList<>(suppressions);
         }
     }
 
@@ -155,7 +157,7 @@ public final class BypassScanner {
                           List<BypassFinding> warnings,
                           List<BypassFinding> suppressions) throws IOException {
         String rel = rel(root, file);
-        String src = Files.readString(file, StandardCharsets.UTF_8);
+        String src = new String(Files.readAllBytes(file), StandardCharsets.UTF_8);
         JavaSourceLexer lex = JavaSourceLexer.of(src);
         String clean = lex.clean();
         String masked = lex.masked();
@@ -344,9 +346,9 @@ public final class BypassScanner {
         while (i >= 0 && Character.isWhitespace(masked.charAt(i))) i--;
         // 注释被抹成空格，所以 i 现在停在上一段"代码"的末尾；注释块就在 (i, annotationStart) 之间
         int regionStart = i + 1;
-        if (regionStart >= annotationStart) return Map.of();
+        if (regionStart >= annotationStart) return Collections.emptyMap();
         String region = src.substring(regionStart, annotationStart);
-        if (!region.contains(EXEMPT_MARK)) return Map.of();
+        if (!region.contains(EXEMPT_MARK)) return Collections.emptyMap();
 
         Map<String, String> out = new LinkedHashMap<>();
         Matcher m = EXEMPT.matcher(region);

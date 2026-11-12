@@ -1,5 +1,7 @@
 package com.towndemontower.core;
 
+
+import java.nio.file.Paths;
 import com.towndemontower.core.approval.ApprovalCenter;
 import com.towndemontower.core.approval.ApprovalDecision;
 import com.towndemontower.core.approval.ApprovalPolicy;
@@ -50,6 +52,15 @@ import java.util.Set;
  */
 public class V15HardeningTest {
 
+    private static java.util.Map<String, Object> map(Object... kv) {
+        java.util.Map<String, Object> m = new java.util.HashMap<>();
+        for (int i = 0; i + 1 < kv.length; i += 2) {
+            m.put((String) kv[i], kv[i + 1]);
+        }
+        return m;
+    }
+
+
     static int pass = 0, fail = 0;
 
     /** 门禁密钥显式注入（生产只认环境变量 TOWNDEMONTOWER_GATE_KEY）。 */
@@ -76,24 +87,24 @@ public class V15HardeningTest {
         Path work = Files.createTempDirectory("snap-restore");
         Path sn = Files.createTempDirectory("snap-store");
         Path target = work.resolve("a.txt");
-        Files.writeString(target, "v1", StandardCharsets.UTF_8);
+        Files.write(target, ("v1").getBytes(StandardCharsets.UTF_8));
 
         SnapshotService svc = new SnapshotService(sn);
-        String id = svc.beforeWrite(intent("writeFile", Map.of("path", target.toString(), "content", "v2")), desc("writeFile"));
+        String id = svc.beforeWrite(intent("writeFile", map("path", target.toString(), "content", "v2")), desc("writeFile"));
         check("快照-生成ID", id != null && id.startsWith("SNAP-"));
 
         // 模拟工具真的写了文件
-        Files.writeString(target, "v2", StandardCharsets.UTF_8);
-        check("快照-已改动", "v2".equals(Files.readString(target)));
+        Files.write(target, ("v2").getBytes(StandardCharsets.UTF_8));
+        check("快照-已改动", "v2".equals(new String(Files.readAllBytes(target), StandardCharsets.UTF_8)));
 
         int n = svc.restore(id);
         check("快照-还原条数", n == 1);
-        check("快照-内容还原", "v1".equals(Files.readString(target)));
+        check("快照-内容还原", "v1".equals(new String(Files.readAllBytes(target), StandardCharsets.UTF_8)));
 
         // 原本不存在的文件：回滚语义 = 删除
         Path created = work.resolve("b.txt");
-        String id2 = svc.beforeWrite(intent("writeFile", Map.of("path", created.toString())), desc("writeFile"));
-        Files.writeString(created, "new", StandardCharsets.UTF_8);
+        String id2 = svc.beforeWrite(intent("writeFile", map("path", created.toString())), desc("writeFile"));
+        Files.write(created, ("new").getBytes(StandardCharsets.UTF_8));
         svc.restore(id2);
         check("快照-新建文件被删除", !Files.exists(created));
 
@@ -102,11 +113,11 @@ public class V15HardeningTest {
     }
 
     static void snapshotFailClosed() {
-        SnapshotService svc = new SnapshotService(java.nio.file.Path.of(System.getProperty("java.io.tmpdir"), "snap-fc"));
+        SnapshotService svc = new SnapshotService(java.nio.file.Paths.get(System.getProperty("java.io.tmpdir"), "snap-fc"));
         svc.failNext = true;
         boolean threw = false;
         try {
-            svc.beforeWrite(intent("writeFile", Map.of("path", "x")), desc("writeFile"));
+            svc.beforeWrite(intent("writeFile", map("path", "x")), desc("writeFile"));
         } catch (RuntimeException e) {
             threw = true;
         }
@@ -192,13 +203,13 @@ public class V15HardeningTest {
                 new com.towndemontower.core.approval.HumanApprovalPolicy(),
                 null, m, null);
 
-        SkillResult okR = ex.execute(intent("writeFile", Map.of("path", "/tmp/x", "content", "c")), ctx("a"));
+        SkillResult okR = ex.execute(intent("writeFile", map("path", "/tmp/x", "content", "c")), ctx("a"));
         check("指标-成功计入总数", okR.success && m.get(GovernanceMetrics.TOTAL) == 1 && m.get(GovernanceMetrics.DENIED) == 0);
 
-        SkillResult r3 = ex.execute(intent("deleteData", Map.of("table", "t")), ctx("a"));
+        SkillResult r3 = ex.execute(intent("deleteData", map("table", "t")), ctx("a"));
         check("指标-R3拒绝计数", !r3.success && m.get("R3_DENIED") == 1 && m.get(GovernanceMetrics.DENIED) == 1);
 
-        SkillResult pending = ex.execute(intent("deployService", Map.of("target", "svc", "version", "1")), ctx("a"));
+        SkillResult pending = ex.execute(intent("deployService", map("target", "svc", "version", "1")), ctx("a"));
         check("指标-待审批与拒绝分离",
                 "PENDING_APPROVAL".equals(pending.code)
                         && m.get(GovernanceMetrics.PENDING_APPROVAL) == 1
@@ -216,7 +227,7 @@ public class V15HardeningTest {
     static void pipelineState() throws Exception {
         InMemoryPipelineStateStore mem = new InMemoryPipelineStateStore();
         Executor ex = buildWith(mem, null);
-        ex.execute(intent("writeFile", Map.of("path", "/tmp/x", "content", "c")), ctx("a"));
+        ex.execute(intent("writeFile", map("path", "/tmp/x", "content", "c")), ctx("a"));
         PipelineState st = mem.load("task-1");
         check("状态-执行后落盘", st != null && st.mode == AgentMode.DEV_EXECUTION);
         check("状态-记录裁决", st != null && "OK".equals(st.lastDecision));
@@ -265,13 +276,13 @@ public class V15HardeningTest {
         // 普通策略恒 APPROVE：机制必须改判为转人工
         ApprovalPolicy lenient = (t, c) -> ApprovalDecision.APPROVE;
         Executor ex = buildWith(new InMemoryPipelineStateStore(), null, lenient);
-        SkillResult r = ex.execute(intent("deployService", Map.of("target", "svc", "version", "1")), ctx("a"));
+        SkillResult r = ex.execute(intent("deployService", map("target", "svc", "version", "1")), ctx("a"));
         check("R2-普通策略不能自动批准", "PENDING_APPROVAL".equals(r.code) && r.approvalTicketId != null);
 
         // 显式声明受信的策略才可自动批准（企业审批网关场景）
         TrustedApprovalPolicy trusted = (t, c) -> ApprovalDecision.APPROVE;
         Executor ex2 = buildWith(new InMemoryPipelineStateStore(), null, trusted);
-        SkillResult r2 = ex2.execute(intent("deployService", Map.of("target", "svc", "version", "1")), ctx("a"));
+        SkillResult r2 = ex2.execute(intent("deployService", map("target", "svc", "version", "1")), ctx("a"));
         check("R2-受信策略可放行", r2.success);
     }
 

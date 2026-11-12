@@ -1,5 +1,7 @@
 package com.towndemontower.core.analysis;
 
+
+import java.nio.file.Paths;
 import com.towndemontower.core.contract.TimeProvider;
 
 import java.io.IOException;
@@ -37,43 +39,52 @@ public final class AuditAnalyzerMain {
 
         for (int i = 0; i < args.length; i++) {
             switch (args[i]) {
-                case "--file" -> {
+                case "--file": {
                     if (++i >= args.length) { usage("--file 需要一个文件路径"); return; }
-                    file = Path.of(args[i]);
+                    file = Paths.get(args[i]);
+                    break;
                 }
-                case "--out" -> {
+                case "--out": {
                     if (++i >= args.length) { usage("--out 需要一个文件路径"); return; }
-                    out = Path.of(args[i]);
+                    out = Paths.get(args[i]);
+                    break;
                 }
-                case "--window" -> {
+                case "--window": {
                     if (++i >= args.length) { usage("--window 需要整数"); return; }
                     config = config.withWindowRecords(intArg(args[i], "--window"));
+                    break;
                 }
-                case "--min-samples" -> {
+                case "--min-samples": {
                     if (++i >= args.length) { usage("--min-samples 需要整数"); return; }
                     config = config.withMinSamples(intArg(args[i], "--min-samples"));
+                    break;
                 }
-                case "--pending-threshold" -> {
+                case "--pending-threshold": {
                     if (++i >= args.length) { usage("--pending-threshold 需要整数"); return; }
                     config = config.withPendingApprovalThreshold(intArg(args[i], "--pending-threshold"));
+                    break;
                 }
-                case "--r3-threshold" -> {
+                case "--r3-threshold": {
                     if (++i >= args.length) { usage("--r3-threshold 需要整数"); return; }
                     config = config.withR3DeniedThreshold(intArg(args[i], "--r3-threshold"));
+                    break;
                 }
-                case "--denial-rate" -> {
+                case "--denial-rate": {
                     if (++i >= args.length) { usage("--denial-rate 需要 0.0..1.0"); return; }
                     config = config.withDenialRateThreshold(doubleArg(args[i], "--denial-rate"));
+                    break;
                 }
-                case "--normalize-aliases" -> {
+                case "--normalize-aliases": {
                     // 方向 D：显式打通跨语言统计口径；不带此参数时保持 D-3「只认 Java 规范码」
                     config = config.withNormalizeAliases(true);
+                    break;
                 }
-                case "-h", "--help" -> {
+                case "-h":
+                case "--help": {
                     usage(null);
                     return;
                 }
-                default -> {
+                default: {
                     usage("未知参数：" + args[i]);
                     return;
                 }
@@ -110,7 +121,7 @@ public final class AuditAnalyzerMain {
             try {
                 Path parent = out.toAbsolutePath().getParent();
                 if (parent != null) Files.createDirectories(parent);
-                Files.writeString(out, report.toJson(), StandardCharsets.UTF_8);
+                Files.write(out, (report.toJson()).getBytes(StandardCharsets.UTF_8));
                 System.out.println("JSON 报告已写入：" + out);
             } catch (IOException e) {
                 System.err.println("报告写入失败：" + e.getMessage());

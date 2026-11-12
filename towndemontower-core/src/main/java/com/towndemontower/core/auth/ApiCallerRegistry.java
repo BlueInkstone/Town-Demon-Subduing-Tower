@@ -1,4 +1,5 @@
 package com.towndemontower.core.auth;
+import java.util.Arrays;
 
 import com.towndemontower.core.security.SecretPolicy;
 
@@ -103,21 +104,21 @@ public final class ApiCallerRegistry {
 
     private ApiCallerRegistry(List<String> names, List<byte[]> digests,
                               List<String> rejected, boolean envPresent) {
-        this.names = List.copyOf(names);
-        this.digests = List.copyOf(digests);
-        this.rejected = List.copyOf(rejected);
+        this.names = new ArrayList<>(names);
+        this.digests = new ArrayList<>(digests);
+        this.rejected = new ArrayList<>(rejected);
         this.envPresent = envPresent;
     }
 
     /** 空表（没有任何令牌）。 */
     public static ApiCallerRegistry empty() {
-        return new ApiCallerRegistry(List.of(), List.of(), List.of(), false);
+        return new ApiCallerRegistry(Arrays.asList(), Arrays.asList(), Arrays.asList(), false);
     }
 
     /** 从环境变量装配。未设置或不合格 → 空表，不做任何默认值兜底。 */
     public static ApiCallerRegistry fromEnv() {
         String raw = System.getenv(TOKENS_ENV);
-        if (raw == null || raw.isBlank()) return empty();
+        if (raw == null || raw.trim().isEmpty()) return empty();
         return parse(raw);
     }
 
@@ -131,11 +132,11 @@ public final class ApiCallerRegistry {
         List<byte[]> digests = new ArrayList<>();
         List<String> rejected = new ArrayList<>();
         Set<String> seen = new LinkedHashSet<>();
-        if (raw == null || raw.isBlank()) {
+        if (raw == null || raw.trim().isEmpty()) {
             return new ApiCallerRegistry(names, digests, rejected, false);
         }
         for (String entry : raw.split("[,;\\s]+")) {
-            if (entry.isBlank()) continue;
+            if (entry.trim().isEmpty()) continue;
             int idx = entry.indexOf(':');
             if (idx <= 0 || idx == entry.length() - 1) {
                 rejected.add(entry.contains(":") ? "条目缺少令牌" : entry + "(缺少 '名称:令牌' 分隔)");
@@ -204,7 +205,7 @@ public final class ApiCallerRegistry {
             return Auth.denied("AUTH_TOKEN_UNAVAILABLE",
                     "未配置任何可用调用令牌（环境变量 " + TOKENS_ENV + "）");
         }
-        if (authorizationHeader == null || authorizationHeader.isBlank()) {
+        if (authorizationHeader == null || authorizationHeader.trim().isEmpty()) {
             return Auth.denied("CALLER_UNAUTHENTICATED", "缺少 Authorization 头");
         }
         String v = authorizationHeader.trim();

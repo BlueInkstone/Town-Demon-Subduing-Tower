@@ -20,7 +20,10 @@
     <description>薄适配层：AOP 拦截 @AgentSkill 方法，并经 Spring 自动配置装配 core 默认治理策略。</description>
 
     <properties>
-        <java.version>25</java.version>
+        <!-- 编译目标统一为 17（class 61）。Spring Boot 3.2.5 内嵌 ASM 最高只认 class 65（Java 21），
+             用 25（class 69）会让 Spring 扫描到自己的自动配置类时直接 ClassFormatException —— 应用起不来。
+             本项目档次：core / gateway = Java 8（class 52），Spring 侧模块 = Java 17（class 61）。 -->
+        <java.version>17</java.version>
     </properties>
 
     <dependencies>

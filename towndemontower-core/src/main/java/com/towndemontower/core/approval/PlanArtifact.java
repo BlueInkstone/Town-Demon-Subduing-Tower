@@ -1,4 +1,5 @@
 package com.towndemontower.core.approval;
+import java.util.Arrays;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -36,7 +37,7 @@ public final class PlanArtifact {
 
     /** 只有摘要的旧格式计划。 */
     public static PlanArtifact text(String summary) {
-        return new PlanArtifact(summary, List.of());
+        return new PlanArtifact(summary, Arrays.asList());
     }
 
     /** 带步骤的结构化计划（步骤里的明确工具名会收窄放行范围）。 */

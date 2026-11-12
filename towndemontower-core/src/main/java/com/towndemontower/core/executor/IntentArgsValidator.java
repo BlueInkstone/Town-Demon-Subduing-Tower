@@ -1,5 +1,9 @@
 package com.towndemontower.core.executor;
 
+
+
+import java.util.HashSet;
+import java.util.Arrays;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
@@ -28,7 +32,7 @@ public final class IntentArgsValidator {
 
     /** 被视为"路径"的参数名（小写）。 */
     private static final Set<String> PATH_KEYS =
-            Set.of("path", "file", "filepath", "target", "targetpath", "source", "dest", "dir", "directory");
+            new HashSet<>(Arrays.asList("path", "file", "filepath", "target", "targetpath", "source", "dest", "dir", "directory"));
 
     private IntentArgsValidator() {
     }
@@ -41,11 +45,12 @@ public final class IntentArgsValidator {
         }
         for (Map.Entry<String, Object> e : args.entrySet()) {
             String key = e.getKey();
-            if (key == null || key.isBlank()) {
+            if (key == null || key.trim().isEmpty()) {
                 throw new IntentFormatException("blank argument name");
             }
             Object v = e.getValue();
-            if (!(v instanceof String s)) continue;
+            if (!(v instanceof String)) continue;
+            String s = (String) v;
             if (s.length() > maxValueLength) {
                 throw new IntentFormatException("arg too long: " + key + " len=" + s.length());
             }

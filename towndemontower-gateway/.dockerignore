@@ -1,0 +1,13 @@
+# 构建上下文不需要的目录/文件
+**/target
+**/out
+**/*.class
+**/node_modules
+.git
+**/.git
+data
+**/*.log
+**/*.archive
+**/*.rec
+**/cp.txt
+**/sources.txt

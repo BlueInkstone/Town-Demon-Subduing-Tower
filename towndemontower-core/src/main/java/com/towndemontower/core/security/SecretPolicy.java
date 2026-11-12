@@ -1,4 +1,5 @@
 package com.towndemontower.core.security;
+import java.util.Arrays;
 
 import java.util.HashSet;
 import java.util.List;
@@ -20,13 +21,13 @@ public final class SecretPolicy {
     public static final int MIN_LENGTH = 32;
 
     /**
-     * 最少字符种类。挡住 {@code "a".repeat(64)} 与 {@code "changeme" × 4}
+     * 最少字符种类。挡住 {@code new String(new char[64]).replace('\0', 'a')} 与 {@code "changeme" × 4}
      * 这类"长度够但等于没配"的值。
      */
     public static final int MIN_DISTINCT_CHARS = 12;
 
     /** 常见占位值：出现在源码、示例、CI 模板里的高频字符串，一律视为"未配置"。 */
-    private static final List<String> PLACEHOLDERS = List.of(
+    private static final List<String> PLACEHOLDERS = Arrays.asList(
             "changeme", "change-me", "changeit", "test", "test-key", "testing",
             "dev", "development", "secret", "password", "passwd", "key", "gatekey",
             "towndemontower", "towndemontower-gate-key",
@@ -51,7 +52,7 @@ public final class SecretPolicy {
 
     /** 判定候选密钥。 */
     public static Problem check(String raw) {
-        if (raw == null || raw.isBlank()) return Problem.BLANK;
+        if (raw == null || raw.trim().isEmpty()) return Problem.BLANK;
         String v = raw.trim();
         // 先判占位值：像 "changeme" 这种既是占位又过短的，报"占位"比报"太短"更能指向真正的问题
         if (PLACEHOLDERS.contains(v.toLowerCase(Locale.ROOT))) return Problem.PLACEHOLDER;

@@ -1,5 +1,8 @@
 package com.towndemontower.core;
 
+import java.util.HashSet;
+import java.util.Arrays;
+
 import com.towndemontower.core.audit.AuditRecord;
 import com.towndemontower.core.audit.HashChainAuditStore;
 import com.towndemontower.core.executor.PermissionEngine;
@@ -101,12 +104,12 @@ public class V19PermissionTest {
         check("端口-重复整员回收幂等", port.revokeAll("a") == 0);
 
         port.grant("b", "x:1", "x:2", "x:3");
-        port.replace("b", List.of("y:1"));
-        check("端口-覆盖式授予只留新权限", e.permissionsOf("b").equals(Set.of("y:1")));
-        port.replace("b", List.of());
+        port.replace("b", Arrays.asList("y:1"));
+        check("端口-覆盖式授予只留新权限", e.permissionsOf("b").equals(new HashSet<>(Arrays.asList("y:1"))));
+        port.replace("b", Arrays.asList());
         check("端口-覆盖为空即清空", e.permissionsOf("b").isEmpty());
 
-        port.grant("c", List.of("p:1", "p:2"));
+        port.grant("c", Arrays.asList("p:1", "p:2"));
         check("端口-集合重载生效", e.permissionsOf("c").size() == 2);
 
         // 空入参不应产生任何副作用
@@ -125,7 +128,7 @@ public class V19PermissionTest {
         port.grant("agent-1", "fs:write");
         port.revoke("agent-1", "fs:write");
         port.grant("agent-2", "ops:deploy");
-        port.replace("agent-2", List.of("log:read"));
+        port.replace("agent-2", Arrays.asList("log:read"));
         port.revokeAll("agent-2");
 
         List<AuditRecord> records = audit.all();

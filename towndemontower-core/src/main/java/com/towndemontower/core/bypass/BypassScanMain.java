@@ -1,5 +1,7 @@
 package com.towndemontower.core.bypass;
 
+
+import java.nio.file.Paths;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -24,28 +26,37 @@ import java.util.List;
 public final class BypassScanMain {
 
     public static void main(String[] args) {
-        Path root = Path.of(".");
+        Path root = Paths.get(".");
         Path report = null;
         boolean strict = false;
         boolean includeTest = true;
 
         for (int i = 0; i < args.length; i++) {
             switch (args[i]) {
-                case "--root" -> {
+                case "--root": {
                     if (++i >= args.length) usage("--root 需要一个目录参数");
-                    root = Path.of(args[i]);
+                    root = Paths.get(args[i]);
+                    break;
                 }
-                case "--report" -> {
+                case "--report": {
                     if (++i >= args.length) usage("--report 需要一个文件路径");
-                    report = Path.of(args[i]);
+                    report = Paths.get(args[i]);
+                    break;
                 }
-                case "--strict" -> strict = true;
-                case "--main-only" -> includeTest = false;
-                case "-h", "--help" -> {
+                case "--strict":
+                    strict = true;
+                    break;
+                case "--main-only":
+                    includeTest = false;
+                    break;
+                case "-h":
+                case "--help": {
                     usage(null);
                     return;
                 }
-                default -> usage("未知参数：" + args[i]);
+                default:
+                    usage("未知参数：" + args[i]);
+                    break;
             }
         }
 
@@ -71,7 +82,7 @@ public final class BypassScanMain {
             try {
                 Path parent = report.toAbsolutePath().getParent();
                 if (parent != null) Files.createDirectories(parent);
-                Files.writeString(report, SonarIssueReport.toJson(issues), StandardCharsets.UTF_8);
+                Files.write(report, (SonarIssueReport.toJson(issues)).getBytes(StandardCharsets.UTF_8));
                 System.out.println("SonarQube 通用问题报告已写入：" + report);
             } catch (IOException e) {
                 System.err.println("报告写入失败：" + e.getMessage());

@@ -1,5 +1,7 @@
 package com.towndemontower.core;
 
+
+import java.nio.charset.StandardCharsets;
 import com.towndemontower.core.audit.AuditStore;
 import com.towndemontower.core.audit.HashChainAuditStore;
 import com.towndemontower.core.approval.ApprovalDecision;

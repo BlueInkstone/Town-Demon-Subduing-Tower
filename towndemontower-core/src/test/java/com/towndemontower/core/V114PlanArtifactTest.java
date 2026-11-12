@@ -1,5 +1,8 @@
 package com.towndemontower.core;
 
+import java.nio.file.Paths;
+import java.util.Arrays;
+
 import com.towndemontower.core.approval.ApprovalDecision;
 import com.towndemontower.core.approval.ApprovalPolicy;
 import com.towndemontower.core.approval.FilePlanApprovalStore;
@@ -67,7 +70,7 @@ public class V114PlanArtifactTest {
         check("模型-旧格式不限定工具", !legacy.hasToolScope() && legacy.coversTool("applyPatch"));
         check("模型-旧格式工具范围文案", legacy.describeTools().contains("未限定"));
 
-        PlanArtifact structured = PlanArtifact.of("结构化", List.of(
+        PlanArtifact structured = PlanArtifact.of("结构化", Arrays.asList(
                 PlanStep.of("applyPatch", "改三个文件"),
                 PlanStep.of("runTests", "跑回归"),
                 PlanStep.of("", "人工复核")));
@@ -76,7 +79,7 @@ public class V114PlanArtifactTest {
         check("模型-覆盖点名工具", structured.coversTool("applyPatch"));
         check("模型-不覆盖未点名工具", !structured.coversTool("deleteFile"));
         check("模型-空工具名不受理", !structured.coversTool(null) && !structured.coversTool(" "));
-        PlanArtifact generic = PlanArtifact.of("x", List.of(PlanStep.of("", "看看再说")));
+        PlanArtifact generic = PlanArtifact.of("x", Arrays.asList(PlanStep.of("", "看看再说")));
         check("模型-纯描述步骤退回任务级",
                 !generic.hasToolScope() && generic.coversTool("applyPatch"));
         check("模型-步骤意图必填", throwsIae(() -> PlanStep.of("applyPatch", "  ")));
@@ -88,7 +91,7 @@ public class V114PlanArtifactTest {
 
     static void serviceWithSteps() {
         PlanApprovalService svc = new PlanApprovalService();
-        PlanArtifact plan = PlanArtifact.of("修复任务", List.of(
+        PlanArtifact plan = PlanArtifact.of("修复任务", Arrays.asList(
                 PlanStep.of("applyPatch", "改代码"),
                 PlanStep.of("runTests", "跑测试")));
 
@@ -120,7 +123,7 @@ public class V114PlanArtifactTest {
         PlanApprovalService svc = new PlanApprovalService();
         Executor gate = gateOf(reg, svc);
 
-        PlanArtifact plan = PlanArtifact.of("只改不删", List.of(
+        PlanArtifact plan = PlanArtifact.of("只改不删", Arrays.asList(
                 PlanStep.of("applyPatch", "改代码")));
         String id = svc.request("agent-1", "task-1", plan);
         svc.approve(id, "human-1", "同意");
@@ -135,7 +138,7 @@ public class V114PlanArtifactTest {
                 && out.message.contains("不在已批准计划") && out.message.contains("revise"));
 
         // 扩大范围必须显式修订并重新审批；新单 PENDING 期间原工具也暂停（fail-closed）。
-        String revised = svc.revise("agent-1", "task-1", PlanArtifact.of("改删都要", List.of(
+        String revised = svc.revise("agent-1", "task-1", PlanArtifact.of("改删都要", Arrays.asList(
                 PlanStep.of("applyPatch", "改代码"),
                 PlanStep.of("deleteFile", "删临时文件"))));
         check("修订-生成新单", !revised.equals(id)
@@ -161,7 +164,7 @@ public class V114PlanArtifactTest {
         PlanApprovalService svc = new PlanApprovalService(audit);
         String id = svc.request("agent-1", "task-1", PlanArtifact.text("初始"));
         svc.approve(id, "human-1", "同意");
-        String revised = svc.revise("agent-1", "task-1", PlanArtifact.of("扩大", List.of(
+        String revised = svc.revise("agent-1", "task-1", PlanArtifact.of("扩大", Arrays.asList(
                 PlanStep.of("applyPatch", "改代码"))));
 
         check("修订-审计动作可识别",
@@ -181,7 +184,7 @@ public class V114PlanArtifactTest {
         FilePlanApprovalStore store = new FilePlanApprovalStore(file);
         PlanApprovalService first = new PlanApprovalService(store, null);
 
-        PlanArtifact plan = PlanArtifact.of("发布计划", List.of(
+        PlanArtifact plan = PlanArtifact.of("发布计划", Arrays.asList(
                 PlanStep.of("applyPatch", "改配置"),
                 PlanStep.of("runTests", "跑回归")));
         String id = first.request("agent-1", "task-1", plan);
@@ -198,7 +201,7 @@ public class V114PlanArtifactTest {
                 && "human-1".equals(p.decidedBy) && "同意发布".equals(p.note));
         check("持久化-重启后闸门直接放行",
                 second.isApprovedFor("agent-1", "task-1", "applyPatch"));
-        check("持久化-文件含表头", Files.readString(file, StandardCharsets.UTF_8)
+        check("持久化-文件含表头", new String(Files.readAllBytes(file), StandardCharsets.UTF_8)
                 .startsWith("#PLAN-STORE v1"));
         check("持久化-快照行数=提交+批准", store.load().size() == 2);
     }
@@ -229,7 +232,7 @@ public class V114PlanArtifactTest {
 
     static void corruptFileFailsClosed() throws Exception {
         Path file = tempFile("corrupt");
-        Files.writeString(file, "#PLAN-STORE v1\nbroken-line\n", StandardCharsets.UTF_8);
+        Files.write(file, ("#PLAN-STORE v1\nbroken-line\n").getBytes(StandardCharsets.UTF_8));
         check("损坏-拒绝启动", throwsIse(() -> new PlanApprovalService(
                 new FilePlanApprovalStore(file), null)));
     }
@@ -256,7 +259,7 @@ public class V114PlanArtifactTest {
     // ------------------------------------------------------------------
 
     static Path tempFile(String tag) throws Exception {
-        Path dir = Path.of("target", "v114");
+        Path dir = Paths.get("target", "v114");
         Files.createDirectories(dir);
         return dir.resolve(tag + "-" + System.nanoTime() + ".log");
     }

@@ -1,4 +1,5 @@
 package com.towndemontower.core;
+import java.util.Arrays;
 
 import com.towndemontower.core.auth.ApiCallerRegistry;
 import com.towndemontower.core.auth.AuthMode;
@@ -54,9 +55,9 @@ public class V18AuthTest {
         check("策略-太短", SecretPolicy.check("Ab3!xY9@qW2#") == SecretPolicy.Problem.TOO_SHORT);
         check("策略-占位值", SecretPolicy.check("changeme") == SecretPolicy.Problem.PLACEHOLDER);
         check("策略-占位值大小写", SecretPolicy.check("ChangeMe") == SecretPolicy.Problem.PLACEHOLDER);
-        check("策略-低熵", SecretPolicy.check("a".repeat(64)) == SecretPolicy.Problem.LOW_ENTROPY);
+        check("策略-低熵", SecretPolicy.check(new String(new char[64]).replace('\0', 'a')) == SecretPolicy.Problem.LOW_ENTROPY);
         check("策略-重复占位值仍低熵或占位",
-                SecretPolicy.check("changeme".repeat(4)) != SecretPolicy.Problem.OK);
+                SecretPolicy.check("changemechangemechangemechangeme") != SecretPolicy.Problem.OK);
         check("策略-长度下限常量", SecretPolicy.MIN_LENGTH == 32);
         check("策略-字符种类下限常量", SecretPolicy.MIN_DISTINCT_CHARS == 12);
         check("策略-原因可读", SecretPolicy.describe(SecretPolicy.Problem.TOO_SHORT).contains("32"));
@@ -65,7 +66,7 @@ public class V18AuthTest {
     static void parseAndReject() {
         ApiCallerRegistry r = ApiCallerRegistry.parse("ops:" + T1 + ",ci:" + T2);
         check("解析-两条装配", r.size() == 2);
-        check("解析-名称有序", r.callerNames().equals(List.of("ops", "ci")));
+        check("解析-名称有序", r.callerNames().equals(Arrays.asList("ops", "ci")));
         check("解析-无拒绝项", r.rejected().isEmpty());
         check("解析-状态OK", r.status() == ApiCallerRegistry.Status.OK);
 

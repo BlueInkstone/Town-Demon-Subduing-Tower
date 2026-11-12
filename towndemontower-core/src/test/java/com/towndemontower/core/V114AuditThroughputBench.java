@@ -1,5 +1,7 @@
 package com.towndemontower.core;
 
+
+import java.nio.file.Paths;
 import com.towndemontower.core.audit.AuditStore;
 import com.towndemontower.core.audit.FileAnchorReplica;
 import com.towndemontower.core.audit.FileAuditStore;
@@ -59,7 +61,7 @@ public class V114AuditThroughputBench {
     public static void main(String[] args) throws Exception {
         int n = args.length > 0 ? Integer.parseInt(args[0]) : 2000;
         String tag = Long.toString(System.nanoTime());
-        Path base = Path.of("target", "bench-audit-" + tag);
+        Path base = Paths.get("target", "bench-audit-" + tag);
 
         System.out.println("审计写入吞吐压测：n=" + n + " 条/场景，目录 " + base);
         System.out.println();
@@ -123,8 +125,8 @@ public class V114AuditThroughputBench {
         Files.createDirectories(dir);
         Path log = dir.resolve("audit.log");
         List<com.towndemontower.core.audit.AnchorReplica> replicas = withReplica
-                ? List.of(new FileAnchorReplica(dir.resolve("anchor-ledger.log"), key))
-                : List.of();
+                ? Arrays.asList(new FileAnchorReplica(dir.resolve("anchor-ledger.log"), key))
+                : Arrays.asList();
         FileAuditStore store = new FileAuditStore(log, key, batch, 0L, replicas, false);
 
         long[] lat = new long[n];

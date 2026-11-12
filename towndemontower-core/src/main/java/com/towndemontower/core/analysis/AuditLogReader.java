@@ -38,7 +38,7 @@ public final class AuditLogReader {
         public final String problem;
 
         Loaded(List<AuditRecord> records, boolean chainValid, boolean legacySeen, String problem) {
-            this.records = List.copyOf(records);
+            this.records = new ArrayList<>(records);
             this.chainValid = chainValid;
             this.legacySeen = legacySeen;
             this.problem = problem;
@@ -61,7 +61,7 @@ public final class AuditLogReader {
         int lineNo = 0;
         for (String line : Files.readAllLines(file, StandardCharsets.UTF_8)) {
             lineNo++;
-            if (line == null || line.isBlank()) continue;
+            if (line == null || line.trim().isEmpty()) continue;
             if (line.startsWith(SEGMENT_PREFIX)) {
                 prev = GENESIS;
                 continue;

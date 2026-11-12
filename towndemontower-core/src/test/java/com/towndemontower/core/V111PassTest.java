@@ -1,4 +1,5 @@
 package com.towndemontower.core;
+import java.util.Arrays;
 
 import com.towndemontower.core.audit.AuditRecord;
 import com.towndemontower.core.audit.AuditStore;
@@ -48,7 +49,7 @@ public class V111PassTest {
 
         @Override
         public List<AuditRecord> all() {
-            return List.of();
+            return Arrays.asList();
         }
 
         @Override

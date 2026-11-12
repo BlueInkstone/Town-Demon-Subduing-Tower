@@ -1,4 +1,6 @@
 package com.towndemontower.core.decorator;
+import com.towndemontower.core.util.IO;
+import java.util.Arrays;
 
 import com.towndemontower.core.executor.CancellationToken;
 
@@ -49,7 +51,7 @@ public class DockerSandboxStrategy implements SandboxStrategy {
      * 不允许改动命名空间、挂载、设备、权限与网络。
      */
     private static final List<String> ALLOWED_EXTRA_FLAGS =
-            List.of("-u", "--user", "--pids-limit", "--cpus");
+            Arrays.asList("-u", "--user", "--pids-limit", "--cpus");
 
     private final String image;
     private final String shell;
@@ -88,7 +90,7 @@ public class DockerSandboxStrategy implements SandboxStrategy {
         this.readOnlyRoot = readOnlyRoot;
         // 构造期即校验：非法 extraArgs 不等到运行才炸，而是根本装配不出策略对象
         this.extraArgs = validateExtraArgs(extraArgs);
-        this.runAsUser = (runAsUser == null || runAsUser.isBlank()) ? DEFAULT_USER : runAsUser.trim();
+        this.runAsUser = (runAsUser == null || runAsUser.trim().isEmpty()) ? DEFAULT_USER : runAsUser.trim();
         this.pidsLimit = pidsLimit > 0 ? pidsLimit : DEFAULT_PIDS_LIMIT;
         rejectRootUser(this.runAsUser);
     }
@@ -102,7 +104,7 @@ public class DockerSandboxStrategy implements SandboxStrategy {
         if (raw == null) return out;
         for (int i = 0; i < raw.size(); i++) {
             String a = raw.get(i);
-            if (a == null || a.isBlank()) continue;
+            if (a == null || a.trim().isEmpty()) continue;
             String flag = a.contains("=") ? a.substring(0, a.indexOf('=')) : a;
             if (!ALLOWED_EXTRA_FLAGS.contains(flag)) {
                 throw new IllegalArgumentException("extraArgs 含不允许的参数 [" + a + "]：只允许 "
@@ -230,7 +232,7 @@ public class DockerSandboxStrategy implements SandboxStrategy {
                 throw new java.util.concurrent.CancellationException("docker sandbox cancelled: " + command);
             }
             int exit = p.exitValue();
-            String out = new String(p.getInputStream().readAllBytes());
+            String out = new String(IO.readAllBytes(p.getInputStream()));
             if (exit != 0) {
                 throw new RuntimeException("docker run exited " + exit + ": " + out);
             }

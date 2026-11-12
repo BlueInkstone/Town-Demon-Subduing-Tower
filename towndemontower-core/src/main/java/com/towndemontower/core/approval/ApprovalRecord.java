@@ -74,7 +74,7 @@ public final class ApprovalRecord {
         m.put("comment", comment);
         m.put("decidedAt", str(decidedAt));
         StringBuilder sb = new StringBuilder();
-        for (var e : m.entrySet()) {
+        for (Map.Entry<String, String> e : m.entrySet()) {
             sb.append(e.getKey()).append('\t').append(clean(e.getValue())).append('\n');
         }
         return sb.toString();
@@ -96,7 +96,7 @@ public final class ApprovalRecord {
     }
 
     private static String orDefault(String v, String d) {
-        return (v == null || v.isBlank()) ? d : v;
+        return (v == null || v.trim().isEmpty()) ? d : v;
     }
 
     private static String str(Instant i) {
@@ -104,7 +104,7 @@ public final class ApprovalRecord {
     }
 
     private static Instant instant(String s) {
-        return (s == null || s.isBlank()) ? null : Instant.parse(s);
+        return (s == null || s.trim().isEmpty()) ? null : Instant.parse(s);
     }
 
     private static String clean(String s) {

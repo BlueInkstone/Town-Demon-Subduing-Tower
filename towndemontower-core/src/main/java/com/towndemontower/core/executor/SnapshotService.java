@@ -1,5 +1,11 @@
 package com.towndemontower.core.executor;
 
+
+
+
+import java.util.HashSet;
+import java.util.Arrays;
+import java.nio.file.Paths;
 import com.towndemontower.core.contract.IntentObject;
 import com.towndemontower.core.contract.SkillDescriptor;
 
@@ -33,7 +39,7 @@ public class SnapshotService {
 
     /** 被视为"目标路径"的参数名（大小写不敏感）。 */
     private static final Set<String> PATH_KEYS =
-            Set.of("path", "file", "filepath", "target", "targetpath", "source", "dest");
+            new HashSet<>(Arrays.asList("path", "file", "filepath", "target", "targetpath", "source", "dest"));
 
     private static final int MAX_PATH_LEN = 4096;
 
@@ -49,7 +55,7 @@ public class SnapshotService {
     private final java.util.function.UnaryOperator<String> redactor;
 
     public SnapshotService() {
-        this(Path.of(System.getProperty("java.io.tmpdir"), "towndemontower-snapshots"), null);
+        this(Paths.get(System.getProperty("java.io.tmpdir"), "towndemontower-snapshots"), null);
     }
 
     public SnapshotService(Path root) {
@@ -105,7 +111,7 @@ public class SnapshotService {
             for (String line : Files.readAllLines(manifest, StandardCharsets.UTF_8)) {
                 Captured c = Captured.parse(line);
                 if (c == null) continue;
-                Path target = Path.of(c.originalPath);
+                Path target = Paths.get(c.originalPath);
                 Path stored = root.resolve(id).resolve(c.storedName);
                 if (c.existed) {
                     if (!Files.isRegularFile(stored)) continue;
@@ -151,14 +157,15 @@ public class SnapshotService {
         if (intent == null || intent.args == null) return out;
         Path dir = root.resolve(id);
         int index = 0;
-        for (var e : intent.args.entrySet()) {
+        for (java.util.Map.Entry<String, Object> e : intent.args.entrySet()) {
             String key = e.getKey();
             if (key == null || !PATH_KEYS.contains(key.toLowerCase())) continue;
             Object v = e.getValue();
-            if (!(v instanceof String raw) || raw.isBlank() || raw.length() > MAX_PATH_LEN) continue;
+            if (!(v instanceof String) || ((String) v).trim().isEmpty() || ((String) v).length() > MAX_PATH_LEN) continue;
+            String raw = (String) v;
             Path target;
             try {
-                target = Path.of(raw.trim());
+                target = Paths.get(raw.trim());
             } catch (InvalidPathException ex) {
                 continue; // 非法路径不阻断快照流程，交由 Schema/业务层报错
             }
@@ -194,14 +201,48 @@ public class SnapshotService {
     }
 
     /** 单个目标的快照记录。 */
-    private record Captured(String originalPath, boolean existed, String storedName) {
+    private static final class Captured {
+        private final String originalPath;
+        private final boolean existed;
+        private final String storedName;
+
+        Captured(String originalPath, boolean existed, String storedName) {
+            this.originalPath = originalPath;
+            this.existed = existed;
+            this.storedName = storedName;
+        }
+
+        public String originalPath() { return originalPath; }
+        public boolean existed() { return existed; }
+        public String storedName() { return storedName; }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            Captured that = (Captured) o;
+            return java.util.Objects.equals(originalPath, that.originalPath)
+                    && java.util.Objects.equals(existed, that.existed)
+                    && java.util.Objects.equals(storedName, that.storedName);
+        }
+
+        @Override
+        public int hashCode() {
+            return java.util.Objects.hash(originalPath, existed, storedName);
+        }
+
+        @Override
+        public String toString() {
+            return "Captured[originalPath=" + originalPath + ", existed=" + existed
+                    + ", storedName=" + storedName + "]";
+        }
 
         String toLine() {
             return "target\t" + clean(originalPath) + "\texisted\t" + existed + "\tstored\t" + storedName;
         }
 
         static Captured parse(String line) {
-            if (line == null || line.startsWith("#") || line.isBlank()) return null;
+            if (line == null || line.startsWith("#") || line.trim().isEmpty()) return null;
             String[] p = line.split("\t");
             if (p.length < 6 || !"target".equals(p[0])) return null;
             return new Captured(p[1], Boolean.parseBoolean(p[3]), p[5]);

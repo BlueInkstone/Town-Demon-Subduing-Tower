@@ -1,5 +1,7 @@
 package com.towndemontower.core.bypass;
 
+
+import java.nio.file.Paths;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -16,7 +18,7 @@ import java.util.stream.Stream;
  */
 public class BypassScanTest {
 
-    static final Path FIXTURE = Path.of("target", "bypass-fixtures");
+    static final Path FIXTURE = Paths.get("target", "bypass-fixtures");
     static int pass = 0, fail = 0;
 
     static void check(String name, boolean ok) {
@@ -140,7 +142,7 @@ public class BypassScanTest {
 
     /* ---------------- 自扫（最硬的一条） ---------------- */
     static void repoIsClean() throws IOException {
-        Path repo = Path.of("..");
+        Path repo = Paths.get("..");
         if (!Files.isDirectory(repo.resolve("towndemontower-core"))) {
             System.out.println("[SKIP] repo-self-scan：当前工作目录不是模块目录，跳过");
             return;
@@ -239,7 +241,7 @@ public class BypassScanTest {
                         + "    @AgentSkill(name = \"save\", risk = \"R1\")\n"
                         + "    public String save(String p) throws Exception {\n"
                         + "        GovernancePass.require(\"save\");\n"
-                        + "        Files.write(Path.of(p), new byte[0]);\n"
+                        + "        Files.write(Paths.get(p), new byte[0]);\n"
                         + "        return \"ok\";\n"
                         + "    }\n"
                         + "}\n");
@@ -423,7 +425,7 @@ public class BypassScanTest {
         for (int attempt = 1; attempt <= 3; attempt++) {
             try {
                 Files.createDirectories(p.getParent());
-                Files.writeString(p, content, StandardCharsets.UTF_8);
+                Files.write(p, (content).getBytes(StandardCharsets.UTF_8));
                 return;
             } catch (IOException ex) {
                 last = ex;

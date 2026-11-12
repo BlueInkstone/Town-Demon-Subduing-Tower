@@ -1,4 +1,5 @@
 package com.towndemontower.core;
+import java.util.Arrays;
 
 import com.towndemontower.core.analysis.AnalyzerConfig;
 import com.towndemontower.core.analysis.AuditBehaviorAnalyzer;
@@ -147,7 +148,7 @@ public class AuditAnalyzerTest {
                 && nullInput.findings.isEmpty());
 
         // 故障注入：读取记录时抛异常，模拟分析器内部故障
-        List<AuditRecord> throwing = new AbstractList<>() {
+        List<AuditRecord> throwing = new AbstractList<AuditRecord>() {
             @Override public AuditRecord get(int index) {
                 throw new IllegalStateException("boom SECRET-DETAIL");
             }
@@ -162,7 +163,7 @@ public class AuditAnalyzerTest {
 
     /** FR-2 / docs/36 L-2：SDK 别名不得混进 Java 规范码的专项计数。 */
     private static void testSdkAliasesNotCounted() {
-        List<AuditRecord> records = List.of(
+        List<AuditRecord> records = Arrays.asList(
                 rec(1, "APPROVAL_REQUIRED", "AGT-0001"),
                 rec(2, "RISK_REJECTED", "AGT-0001"),
                 rec(3, "OK", "AGT-0001"),
@@ -176,13 +177,13 @@ public class AuditAnalyzerTest {
         check("别名不算 R3_DENIED", a.r3Denied == 0);
         check("别名仍算普通拒绝", a.denied == 2);
         check("NEED_MORE_INFO 沿用 AuditDecorator 口径算拒绝",
-                analyze(List.of(rec(1, ErrorCodes.NEED_MORE_INFO, "A"),
+                analyze(Arrays.asList(rec(1, ErrorCodes.NEED_MORE_INFO, "A"),
                         rec(2, "OK", "A"), rec(3, "OK", "A")), true, c).agents.get(0).denied == 1);
     }
 
     /** 方向 D：显式开启后 SDK 别名按规范码统计；默认关闭保持 D-3「只认 Java 规范码」。 */
     private static void testNormalizeAliases() {
-        List<AuditRecord> records = List.of(
+        List<AuditRecord> records = Arrays.asList(
                 rec(1, "APPROVAL_REQUIRED", "AGT-0001"),
                 rec(2, "APPROVAL_REQUIRED", "AGT-0001"),
                 rec(3, "RISK_REJECTED", "AGT-0001"),
@@ -206,7 +207,7 @@ public class AuditAnalyzerTest {
                 on.analyzableRecords == 5 && on.totalRecords == 5);
 
         // §6.3 未评审的码保持原值，只算普通拒绝
-        BehaviorReport unmapped = analyze(List.of(
+        BehaviorReport unmapped = analyze(Arrays.asList(
                 rec(1, "EXECUTION_ERROR", "A"), rec(2, "OK", "A"), rec(3, "OK", "A")),
                 true, base.withNormalizeAliases(true));
         check("未映射码仍保留为普通拒绝", unmapped.agents.get(0).denied == 1);
@@ -255,12 +256,12 @@ public class AuditAnalyzerTest {
             check("只读加载 6 条", ok.chainValid && ok.records.size() == 6);
             check("加载出的 payload 可用于解析", ok.records.get(0).payload.contains("|OK|"));
             check("加载过程不写审计文件", Files.readAllLines(file, StandardCharsets.UTF_8).stream()
-                    .filter(l -> !l.isBlank() && !l.startsWith("#SEGMENT")).count() == 6);
+                    .filter(l -> !l.trim().isEmpty() && !l.startsWith("#SEGMENT")).count() == 6);
 
             // 篡改一条 payload：链校验必须失败
             List<String> lines = new ArrayList<>(Files.readAllLines(file, StandardCharsets.UTF_8));
             for (int i = 0; i < lines.size(); i++) {
-                if (!lines.get(i).isBlank() && !lines.get(i).startsWith("#SEGMENT")) {
+                if (!lines.get(i).trim().isEmpty() && !lines.get(i).startsWith("#SEGMENT")) {
                     lines.set(i, lines.get(i).replace("|OK|", "|TAMPERED|"));
                     break;
                 }
@@ -315,7 +316,7 @@ public class AuditAnalyzerTest {
     }
 
     private static List<AuditRecord> goldenRecords() {
-        return List.of(
+        return Arrays.asList(
                 rec(1, "OK", "AGT-0001"),
                 rec(2, ErrorCodes.PENDING_APPROVAL, "AGT-0001"),
                 rec(3, ErrorCodes.PENDING_APPROVAL, "AGT-0001"),

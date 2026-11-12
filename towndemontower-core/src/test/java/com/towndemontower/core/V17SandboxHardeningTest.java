@@ -1,4 +1,5 @@
 package com.towndemontower.core;
+import java.util.Arrays;
 
 import com.towndemontower.core.decorator.DockerSandboxStrategy;
 
@@ -45,7 +46,7 @@ public class V17SandboxHardeningTest {
 
         // 自定义 pids 上限生效
         DockerSandboxStrategy tuned = new DockerSandboxStrategy(
-                "alpine:3.19", "sh", 3000, 64, true, true, List.of(),
+                "alpine:3.19", "sh", 3000, 64, true, true, Arrays.asList(),
                 "1000:1000", 32);
         List<String> ta = tuned.buildDockerArgs("ls");
         check("沙箱-自定义pids生效", ta.contains("32") && ta.contains("--pids-limit"));
@@ -54,25 +55,25 @@ public class V17SandboxHardeningTest {
 
     /* ---------- ② 越界参数在构造期即被拒 ---------- */
     static void extraArgsRejected() {
-        check("沙箱-拒挂载宿主根", rejected(List.of("-v", "/:/host")));
-        check("沙箱-拒卷挂载", rejected(List.of("--volume=/data:/data")));
-        check("沙箱-拒特权模式", rejected(List.of("--privileged")));
-        check("沙箱-拒host网络", rejected(List.of("--net=host")));
-        check("沙箱-拒network参数", rejected(List.of("--network", "host")));
-        check("沙箱-拒pid命名空间共享", rejected(List.of("--pid=host")));
-        check("沙箱-拒加capability", rejected(List.of("--cap-add", "SYS_ADMIN")));
-        check("沙箱-拒设备直通", rejected(List.of("--device", "/dev/sda")));
-        check("沙箱-拒安全选项绕过", rejected(List.of("--security-opt=seccomp=unconfined")));
-        check("沙箱-拒以root运行(-u)", rejected(List.of("-u", "root")));
-        check("沙箱-拒以root运行(--user=0:0)", rejected(List.of("--user=0:0")));
-        check("沙箱-拒以uid0运行", rejected(List.of("-u", "0")));
+        check("沙箱-拒挂载宿主根", rejected(Arrays.asList("-v", "/:/host")));
+        check("沙箱-拒卷挂载", rejected(Arrays.asList("--volume=/data:/data")));
+        check("沙箱-拒特权模式", rejected(Arrays.asList("--privileged")));
+        check("沙箱-拒host网络", rejected(Arrays.asList("--net=host")));
+        check("沙箱-拒network参数", rejected(Arrays.asList("--network", "host")));
+        check("沙箱-拒pid命名空间共享", rejected(Arrays.asList("--pid=host")));
+        check("沙箱-拒加capability", rejected(Arrays.asList("--cap-add", "SYS_ADMIN")));
+        check("沙箱-拒设备直通", rejected(Arrays.asList("--device", "/dev/sda")));
+        check("沙箱-拒安全选项绕过", rejected(Arrays.asList("--security-opt=seccomp=unconfined")));
+        check("沙箱-拒以root运行(-u)", rejected(Arrays.asList("-u", "root")));
+        check("沙箱-拒以root运行(--user=0:0)", rejected(Arrays.asList("--user=0:0")));
+        check("沙箱-拒以uid0运行", rejected(Arrays.asList("-u", "0")));
     }
 
     /* ---------- ③ 白名单内参数仍可用 ---------- */
     static void extraArgsAllowed() {
         DockerSandboxStrategy s = new DockerSandboxStrategy(
                 "alpine:3.19", "sh", 3000, 64, true, true,
-                List.of("--cpus", "2", "--pids-limit", "128"));
+                Arrays.asList("--cpus", "2", "--pids-limit", "128"));
         List<String> a = s.buildDockerArgs("ls");
         check("沙箱-放行--cpus", a.contains("--cpus") && a.contains("2"));
         // extraArgs 在后，覆盖默认值：最后一个 --pids-limit 的值应为 128
@@ -81,7 +82,7 @@ public class V17SandboxHardeningTest {
                 && "128".equals(a.get(last + 1)));
 
         DockerSandboxStrategy nonRoot = new DockerSandboxStrategy(
-                "alpine:3.19", "sh", 3000, 64, true, true, List.of("--user", "1000:1000"));
+                "alpine:3.19", "sh", 3000, 64, true, true, Arrays.asList("--user", "1000:1000"));
         List<String> na = nonRoot.buildDockerArgs("ls");
         int nu = na.lastIndexOf("--user");
         check("沙箱-放行非root用户覆盖", nu >= 0 && "1000:1000".equals(na.get(nu + 1)));
@@ -100,7 +101,7 @@ public class V17SandboxHardeningTest {
 
         // runAsUser 传空 → 回落默认值，而不是"不限制"
         DockerSandboxStrategy blank = new DockerSandboxStrategy(
-                "alpine:3.19", "sh", 3000, 64, true, true, List.of(), "  ", 64);
+                "alpine:3.19", "sh", 3000, 64, true, true, Arrays.asList(), "  ", 64);
         check("沙箱-空用户回落默认", blank.buildDockerArgs("ls")
                 .contains(DockerSandboxStrategy.DEFAULT_USER));
     }

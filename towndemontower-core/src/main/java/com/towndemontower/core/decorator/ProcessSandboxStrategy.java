@@ -1,4 +1,5 @@
 package com.towndemontower.core.decorator;
+import com.towndemontower.core.util.IO;
 
 import com.towndemontower.core.executor.CancellationToken;
 
@@ -49,7 +50,7 @@ public class ProcessSandboxStrategy implements SandboxStrategy {
             if (token != null && token.isCancelled()) {
                 throw new java.util.concurrent.CancellationException("sandbox command cancelled: " + command);
             }
-            return new String(p.getInputStream().readAllBytes());
+            return new String(IO.readAllBytes(p.getInputStream()));
         } finally {
             if (watcher != null) watcher.interrupt();
         }

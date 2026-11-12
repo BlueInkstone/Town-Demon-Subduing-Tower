@@ -233,7 +233,7 @@ public class V19AuditSealTest {
             List<String> header = new ArrayList<>();
             List<String[]> recs = new ArrayList<>();
             for (String line : lines) {
-                if (line.isBlank()) continue;
+                if (line.trim().isEmpty()) continue;
                 if (line.startsWith("#SEGMENT")) {
                     header.add(line);
                 } else {
@@ -250,7 +250,7 @@ public class V19AuditSealTest {
                 rewritten.add(seq + "\t" + r[1] + "\t" + h + "\t" + payload);
                 prev = h;
             }
-            Files.writeString(log, String.join("\n", rewritten) + "\n", StandardCharsets.UTF_8);
+            Files.write(log, (String.join("\n", rewritten) + "\n").getBytes(StandardCharsets.UTF_8));
 
             String thrown = reopenFailure(log, null);
             check("落后-前缀重写被发现", thrown != null);
@@ -348,7 +348,7 @@ public class V19AuditSealTest {
         List<String> out = new ArrayList<>();
         int kept = 0;
         for (String line : Files.readAllLines(log, StandardCharsets.UTF_8)) {
-            if (line.isBlank()) continue;
+            if (line.trim().isEmpty()) continue;
             if (line.startsWith("#SEGMENT")) {
                 out.add(line);
                 continue;
@@ -358,7 +358,7 @@ public class V19AuditSealTest {
                 kept++;
             }
         }
-        Files.writeString(log, String.join("\n", out) + "\n", StandardCharsets.UTF_8);
+        Files.write(log, (String.join("\n", out) + "\n").getBytes(StandardCharsets.UTF_8));
     }
 
     static void deleteTree(Path dir) throws IOException {

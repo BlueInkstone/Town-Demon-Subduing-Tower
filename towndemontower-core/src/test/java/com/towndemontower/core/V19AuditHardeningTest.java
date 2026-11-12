@@ -1,4 +1,5 @@
 package com.towndemontower.core;
+import java.util.Arrays;
 
 import com.towndemontower.core.audit.AuditCrypto;
 import com.towndemontower.core.audit.AuditRecord;
@@ -84,7 +85,7 @@ public class V19AuditHardeningTest {
         List<AuditRecord> forged = new ArrayList<>();
         String prev = "GENESIS";
         long seq = 0;
-        for (String payload : List.of("path=/tmp/ok", "table=tmp")) {
+        for (String payload : Arrays.asList("path=/tmp/ok", "table=tmp")) {
             seq++;
             String h = AuditCrypto.sha256(seq + "|NOOP|" + payload + "|" + prev);
             forged.add(new AuditRecord(seq, "NOOP", payload, prev, h));
@@ -140,7 +141,7 @@ public class V19AuditHardeningTest {
             check("锚点-重启后继续写", reopen.anchorRecords() == 4);
             check("锚点-重开后链可验", reopen.verifyChain());
 
-            String anchorText = Files.readString(reopen.anchorFile(), StandardCharsets.UTF_8);
+            String anchorText = new String(Files.readAllBytes(reopen.anchorFile()), StandardCharsets.UTF_8);
             check("锚点-内容含mac", anchorText.contains("mac=") && !anchorText.contains("mac=-"));
         } finally {
             delete(dir);
@@ -162,7 +163,7 @@ public class V19AuditHardeningTest {
             List<String> lines = Files.readAllLines(log, StandardCharsets.UTF_8);
             for (int i = lines.size() - 1; i >= 0; i--) {
                 String line = lines.get(i);
-                if (line != null && !line.isBlank() && !line.startsWith("#SEGMENT")) {
+                if (line != null && !line.trim().isEmpty() && !line.startsWith("#SEGMENT")) {
                     lines.remove(i);
                     break;
                 }
@@ -193,7 +194,7 @@ public class V19AuditHardeningTest {
             List<String> lines = new ArrayList<>(Files.readAllLines(log, StandardCharsets.UTF_8));
             for (int i = 0; i < lines.size(); i++) {
                 String line = lines.get(i);
-                if (line != null && !line.isBlank() && !line.startsWith("#SEGMENT")) {
+                if (line != null && !line.trim().isEmpty() && !line.startsWith("#SEGMENT")) {
                     String[] f = line.split("\t", 4);
                     f[3] = "999";                       // 改 payload，保留原 hash
                     lines.set(i, String.join("\t", f));
@@ -210,16 +211,15 @@ public class V19AuditHardeningTest {
                 Path log2 = dir2.resolve("audit.log");
                 FileAuditStore s2 = new FileAuditStore(log2, KEY);
                 s2.appendAuto("A", "1");
-                String anchor = Files.readString(s2.anchorFile(), StandardCharsets.UTF_8);
-                Files.writeString(s2.anchorFile(),
-                        anchor.replaceAll("mac=[0-9a-f]+", "mac=deadbeef"), StandardCharsets.UTF_8);
+                String anchor = new String(Files.readAllBytes(s2.anchorFile()), StandardCharsets.UTF_8);
+                Files.write(s2.anchorFile(),
+                        anchor.replaceAll("mac=[0-9a-f]+", "mac=deadbeef").getBytes(StandardCharsets.UTF_8));
                 String macFail = expectFailure(log2, KEY);
                 check("篡改-改锚点MAC被发现", macFail != null && macFail.contains("篡改"));
 
                 // ③ 连记录数和末条哈希一起改（无密钥则算不出 MAC）
-                Files.writeString(log2, "\n#SEGMENT x prev=GENESIS\n", StandardCharsets.UTF_8);
-                Files.writeString(s2.anchorFile(), "records=0\thash=GENESIS\tmac=deadbeef\n",
-                        StandardCharsets.UTF_8);
+                Files.write(log2, ("\n#SEGMENT x prev=GENESIS\n").getBytes(StandardCharsets.UTF_8));
+                Files.write(s2.anchorFile(), "records=0\thash=GENESIS\tmac=deadbeef\n".getBytes(StandardCharsets.UTF_8));
                 check("篡改-伪造锚点仍失败", expectFailure(log2, KEY) != null);
             } finally {
                 delete(dir2);
@@ -239,14 +239,14 @@ public class V19AuditHardeningTest {
             old.appendAuto("OLD", "1");
             old.appendAuto("OLD", "2");
             check("升级-旧日志锚点无MAC",
-                    Files.readString(old.anchorFile(), StandardCharsets.UTF_8).contains("mac=-"));
+                    new String(Files.readAllBytes(old.anchorFile()), StandardCharsets.UTF_8).contains("mac=-"));
 
             FileAuditStore upgraded = new FileAuditStore(log, KEY);
             check("升级-带密钥重开旧日志不报错", upgraded.fileRecordCount() == 2);
             upgraded.appendAuto("NEW", "3");
             check("升级-新记录写入", upgraded.anchorRecords() == 3);
             check("升级-锚点已换成带MAC",
-                    !Files.readString(upgraded.anchorFile(), StandardCharsets.UTF_8)
+                    !new String(Files.readAllBytes(upgraded.anchorFile()), StandardCharsets.UTF_8)
                             .contains("mac=-"));
             check("升级-旧段仍可读", upgraded.all().size() == 1);   // 内存链只装本次会话记录
         } finally {
@@ -259,7 +259,7 @@ public class V19AuditHardeningTest {
     static int countRecords(Path log) throws IOException {
         int n = 0;
         for (String line : Files.readAllLines(log, StandardCharsets.UTF_8)) {
-            if (line != null && !line.isBlank() && !line.startsWith("#SEGMENT")) n++;
+            if (line != null && !line.trim().isEmpty() && !line.startsWith("#SEGMENT")) n++;
         }
         return n;
     }

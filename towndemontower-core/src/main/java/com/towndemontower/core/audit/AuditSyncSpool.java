@@ -1,5 +1,11 @@
 package com.towndemontower.core.audit;
 
+
+import java.util.logging.Level;
+import java.util.logging.Logger;
+import java.util.stream.Collectors;
+import java.util.Arrays;
+
 import com.towndemontower.core.contract.TimeProvider;
 
 import java.io.IOException;
@@ -43,7 +49,7 @@ public final class AuditSyncSpool {
     private static final String DEAD_DIR = "dead";
     private static final Base64.Encoder ENC = Base64.getUrlEncoder().withoutPadding();
     private static final Base64.Decoder DEC = Base64.getUrlDecoder();
-    private static final System.Logger LOG = System.getLogger(AuditSyncSpool.class.getName());
+    private static final Logger LOG = Logger.getLogger(AuditSyncSpool.class.getName());
 
     /** 默认保留 7 天。 */
     public static final long DEFAULT_RETENTION_MS = 7L * 24 * 3600 * 1000;
@@ -80,7 +86,7 @@ public final class AuditSyncSpool {
         if (maxBytes < 0) throw new IllegalArgumentException("容量上限不能为负");
         if (maxAttempts < 1) throw new IllegalArgumentException("重试次数至少为 1");
         this.dir = dir;
-        this.replicas = replicas == null ? List.of() : List.copyOf(replicas);
+        this.replicas = replicas == null ? Arrays.asList() : new ArrayList<>(replicas);
         this.retentionMs = retentionMs;
         this.maxBytes = maxBytes;
         this.maxAttempts = maxAttempts;
@@ -133,16 +139,16 @@ public final class AuditSyncSpool {
                         .getBytes(StandardCharsets.UTF_8)) + "\n"
                 + "snapshot=" + snapshotLine + "\n";
         try {
-            Files.writeString(tmp, body, StandardCharsets.UTF_8, StandardOpenOption.CREATE,
+            Files.write(tmp, (body).getBytes(StandardCharsets.UTF_8), StandardOpenOption.CREATE,
                     StandardOpenOption.TRUNCATE_EXISTING);
             move(tmp, target);
             captured.incrementAndGet();
-            LOG.log(System.Logger.Level.WARNING,
+            LOG.log(Level.WARNING,
                     "审计同步失败，已写入本地暂存：replica=" + replicaName + " file=" + name);
         } catch (IOException e) {
             // 暂存写不进去也不能把治理主链一起拖垮；计数留给 /integrity 与日志。
             failed.incrementAndGet();
-            LOG.log(System.Logger.Level.ERROR,
+            LOG.log(Level.SEVERE,
                     "审计同步暂存写入失败（该锚点只能用后续快照追平）：" + name, e);
             throw new IllegalStateException("审计同步暂存写入失败：" + target, e);
         }
@@ -155,7 +161,7 @@ public final class AuditSyncSpool {
             List<Path> recs = files.filter(p -> Files.isRegularFile(p)
                             && p.getFileName().toString().endsWith(".rec"))
                     .sorted()
-                    .toList();
+                    .collect(Collectors.toList());
             for (Path p : recs) {
                 PendingSync one = read(p);
                 if (one == null) {
@@ -167,7 +173,7 @@ public final class AuditSyncSpool {
         } catch (IOException e) {
             throw new IllegalStateException("审计同步暂存读取失败：" + dir, e);
         }
-        return List.copyOf(out);
+        return new ArrayList<>(out);
     }
 
     /**
@@ -182,7 +188,7 @@ public final class AuditSyncSpool {
             List<Path> recs = files.filter(p -> Files.isRegularFile(p)
                             && p.getFileName().toString().endsWith(".rec"))
                     .sorted()
-                    .toList();
+                    .collect(Collectors.toList());
             for (Path p : recs) {
                 PendingSync one = read(p);
                 if (one != null) out.add(one);
@@ -190,7 +196,7 @@ public final class AuditSyncSpool {
         } catch (IOException e) {
             throw new IllegalStateException("审计同步 dead 读取失败：" + deadDir(), e);
         }
-        return List.copyOf(out);
+        return new ArrayList<>(out);
     }
 
     /**
@@ -215,7 +221,7 @@ public final class AuditSyncSpool {
                 delete(p.file());
                 ok++;
                 delivered.incrementAndGet();
-                LOG.log(System.Logger.Level.INFO,
+                LOG.log(Level.INFO,
                         "审计同步补传成功：replica=" + p.replica() + " file=" + p.file().getFileName());
             } catch (RuntimeException e) {
                 int attempts = p.attempts() + 1;
@@ -223,14 +229,14 @@ public final class AuditSyncSpool {
                     moveToDead(p.file());
                     dead++;
                     deadLettered.incrementAndGet();
-                    LOG.log(System.Logger.Level.ERROR,
+                    LOG.log(Level.SEVERE,
                             "审计同步补传超过 " + maxAttempts + " 次，转入 dead/："
                                     + p.file().getFileName() + "（" + describe(e) + "）");
                 } else {
                     rewrite(p, attempts, describe(e));
                     retry++;
                     failed.incrementAndGet();
-                    LOG.log(System.Logger.Level.WARNING,
+                    LOG.log(Level.WARNING,
                             "审计同步补传失败（第 " + attempts + " 次）："
                                     + p.file().getFileName() + "（" + describe(e) + "）");
                 }
@@ -266,7 +272,7 @@ public final class AuditSyncSpool {
         }
         if (byAge + bySize > 0) {
             dropped.addAndGet(byAge + bySize);
-            LOG.log(System.Logger.Level.INFO, "审计同步暂存清理：按时间 " + byAge
+            LOG.log(Level.INFO, "审计同步暂存清理：按时间 " + byAge
                     + " 条、按容量 " + bySize + " 条，剩余 " + remain.size() + " 条 / " + total + " 字节");
         }
         return new CleanupResult(byAge, bySize, remain.size(), total);
@@ -277,7 +283,7 @@ public final class AuditSyncSpool {
         int dead = 0;
         long deadBytes = 0;
         try (Stream<Path> files = Files.list(deadDir())) {
-            for (Path p : files.filter(p -> p.getFileName().toString().endsWith(".rec")).toList()) {
+            for (Path p : files.filter(p -> p.getFileName().toString().endsWith(".rec")).collect(Collectors.toList())) {
                 dead++;
                 deadBytes += sizeOf(p);
             }
@@ -295,7 +301,7 @@ public final class AuditSyncSpool {
     private List<PendingSync> pendingIncludingDead() {
         List<PendingSync> out = new ArrayList<>(pending());
         try (Stream<Path> files = Files.list(deadDir())) {
-            for (Path p : files.filter(p -> p.getFileName().toString().endsWith(".rec")).toList()) {
+            for (Path p : files.filter(p -> p.getFileName().toString().endsWith(".rec")).collect(Collectors.toList())) {
                 PendingSync one = read(p);
                 if (one != null) out.add(one);
             }
@@ -319,12 +325,23 @@ public final class AuditSyncSpool {
                 String k = line.substring(0, eq);
                 String v = line.substring(eq + 1);
                 switch (k) {
-                    case "replica" -> replica = new String(DEC.decode(v), StandardCharsets.UTF_8);
-                    case "snapshot" -> snapshot = v;
-                    case "attempts" -> attempts = Integer.parseInt(v);
-                    case "createdAt" -> createdAt = Long.parseLong(v);
-                    case "lastError" -> error = new String(DEC.decode(v), StandardCharsets.UTF_8);
-                    default -> { }
+                    case "replica":
+                        replica = new String(DEC.decode(v), StandardCharsets.UTF_8);
+                        break;
+                    case "snapshot":
+                        snapshot = v;
+                        break;
+                    case "attempts":
+                        attempts = Integer.parseInt(v);
+                        break;
+                    case "createdAt":
+                        createdAt = Long.parseLong(v);
+                        break;
+                    case "lastError":
+                        error = new String(DEC.decode(v), StandardCharsets.UTF_8);
+                        break;
+                    default:
+                        break;
                 }
             }
             if (replica == null || snapshot == null || createdAt <= 0) return null;
@@ -345,11 +362,11 @@ public final class AuditSyncSpool {
                         .getBytes(StandardCharsets.UTF_8)) + "\n"
                 + "snapshot=" + p.snapshotLine() + "\n";
         try {
-            Files.writeString(tmp, body, StandardCharsets.UTF_8, StandardOpenOption.CREATE,
+            Files.write(tmp, (body).getBytes(StandardCharsets.UTF_8), StandardOpenOption.CREATE,
                     StandardOpenOption.TRUNCATE_EXISTING);
             move(tmp, p.file());
         } catch (IOException e) {
-            LOG.log(System.Logger.Level.WARNING,
+            LOG.log(Level.WARNING,
                     "审计同步暂存重写失败（将按原次数重试）：" + name, e);
         }
     }
@@ -360,7 +377,7 @@ public final class AuditSyncSpool {
         try {
             move(file, deadDir().resolve(name));
         } catch (IOException e) {
-            LOG.log(System.Logger.Level.ERROR,
+            LOG.log(Level.SEVERE,
                     "审计同步暂存移入 dead/ 失败（保留原文件）：" + name, e);
         }
     }
@@ -369,10 +386,10 @@ public final class AuditSyncSpool {
         String name = file.getFileName().toString();
         try {
             move(file, deadDir().resolve(name));
-            LOG.log(System.Logger.Level.WARNING,
+            LOG.log(Level.WARNING,
                     "审计同步暂存记录损坏，已移入 dead/：" + name + "（" + reason + "）");
         } catch (IOException e) {
-            LOG.log(System.Logger.Level.ERROR,
+            LOG.log(Level.SEVERE,
                     "审计同步暂存损坏记录无法移动（保留原文件）：" + name, e);
         }
     }
@@ -392,7 +409,7 @@ public final class AuditSyncSpool {
         try {
             return Files.deleteIfExists(file);
         } catch (IOException e) {
-            LOG.log(System.Logger.Level.WARNING, "审计同步暂存删除失败：" + file, e);
+            LOG.log(Level.WARNING, "审计同步暂存删除失败：" + file, e);
             return false;
         }
     }
@@ -415,25 +432,216 @@ public final class AuditSyncSpool {
 
     private static String describe(RuntimeException e) {
         String m = e.getMessage();
-        return (m == null || m.isBlank()) ? e.getClass().getSimpleName() : m;
+        return (m == null || m.trim().isEmpty()) ? e.getClass().getSimpleName() : m;
     }
 
     /** 一条待补传记录。 */
-    public record PendingSync(Path file, String replica, String snapshotLine,
-                              int attempts, long createdAt, String lastError) {
+    public static final class PendingSync {
+        private final Path file;
+        private final String replica;
+        private final String snapshotLine;
+        private final int attempts;
+        private final long createdAt;
+        private final String lastError;
+
+        public PendingSync(Path file, String replica, String snapshotLine,
+                           int attempts, long createdAt, String lastError) {
+            this.file = file;
+            this.replica = replica;
+            this.snapshotLine = snapshotLine;
+            this.attempts = attempts;
+            this.createdAt = createdAt;
+            this.lastError = lastError;
+        }
+
+        public Path file() { return file; }
+        public String replica() { return replica; }
+        public String snapshotLine() { return snapshotLine; }
+        public int attempts() { return attempts; }
+        public long createdAt() { return createdAt; }
+        public String lastError() { return lastError; }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            PendingSync that = (PendingSync) o;
+            return java.util.Objects.equals(file, that.file)
+                    && java.util.Objects.equals(replica, that.replica)
+                    && java.util.Objects.equals(snapshotLine, that.snapshotLine)
+                    && java.util.Objects.equals(attempts, that.attempts)
+                    && java.util.Objects.equals(createdAt, that.createdAt)
+                    && java.util.Objects.equals(lastError, that.lastError);
+        }
+
+        @Override
+        public int hashCode() {
+            return java.util.Objects.hash(file, replica, snapshotLine, attempts, createdAt, lastError);
+        }
+
+        @Override
+        public String toString() {
+            return "PendingSync[file=" + file + ", replica=" + replica + ", snapshotLine=" + snapshotLine
+                    + ", attempts=" + attempts + ", createdAt=" + createdAt + ", lastError=" + lastError + "]";
+        }
     }
 
     /** 一轮补传结果。 */
-    public record RetryResult(int delivered, int retrying, int deadLettered, int skipped) {
+    public static final class RetryResult {
+        private final int delivered;
+        private final int retrying;
+        private final int deadLettered;
+        private final int skipped;
+
+        public RetryResult(int delivered, int retrying, int deadLettered, int skipped) {
+            this.delivered = delivered;
+            this.retrying = retrying;
+            this.deadLettered = deadLettered;
+            this.skipped = skipped;
+        }
+
+        public int delivered() { return delivered; }
+        public int retrying() { return retrying; }
+        public int deadLettered() { return deadLettered; }
+        public int skipped() { return skipped; }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            RetryResult that = (RetryResult) o;
+            return java.util.Objects.equals(delivered, that.delivered)
+                    && java.util.Objects.equals(retrying, that.retrying)
+                    && java.util.Objects.equals(deadLettered, that.deadLettered)
+                    && java.util.Objects.equals(skipped, that.skipped);
+        }
+
+        @Override
+        public int hashCode() {
+            return java.util.Objects.hash(delivered, retrying, deadLettered, skipped);
+        }
+
+        @Override
+        public String toString() {
+            return "RetryResult[delivered=" + delivered + ", retrying=" + retrying
+                    + ", deadLettered=" + deadLettered + ", skipped=" + skipped + "]";
+        }
     }
 
     /** 一轮清理结果。 */
-    public record CleanupResult(int droppedByAge, int droppedBySize, int remaining, long remainingBytes) {
+    public static final class CleanupResult {
+        private final int droppedByAge;
+        private final int droppedBySize;
+        private final int remaining;
+        private final long remainingBytes;
+
+        public CleanupResult(int droppedByAge, int droppedBySize, int remaining, long remainingBytes) {
+            this.droppedByAge = droppedByAge;
+            this.droppedBySize = droppedBySize;
+            this.remaining = remaining;
+            this.remainingBytes = remainingBytes;
+        }
+
+        public int droppedByAge() { return droppedByAge; }
+        public int droppedBySize() { return droppedBySize; }
+        public int remaining() { return remaining; }
+        public long remainingBytes() { return remainingBytes; }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            CleanupResult that = (CleanupResult) o;
+            return java.util.Objects.equals(droppedByAge, that.droppedByAge)
+                    && java.util.Objects.equals(droppedBySize, that.droppedBySize)
+                    && java.util.Objects.equals(remaining, that.remaining)
+                    && java.util.Objects.equals(remainingBytes, that.remainingBytes);
+        }
+
+        @Override
+        public int hashCode() {
+            return java.util.Objects.hash(droppedByAge, droppedBySize, remaining, remainingBytes);
+        }
+
+        @Override
+        public String toString() {
+            return "CleanupResult[droppedByAge=" + droppedByAge + ", droppedBySize=" + droppedBySize
+                    + ", remaining=" + remaining + ", remainingBytes=" + remainingBytes + "]";
+        }
     }
 
     /** 可观测计数（只增不减，用于日志与端点）。 */
-    public record Stats(int pending, long pendingBytes, int dead, long deadBytes,
-                        long captured, long retried, long delivered, long failed,
-                        long deadLettered, long dropped, long skipped) {
+    public static final class Stats {
+        private final int pending;
+        private final long pendingBytes;
+        private final int dead;
+        private final long deadBytes;
+        private final long captured;
+        private final long retried;
+        private final long delivered;
+        private final long failed;
+        private final long deadLettered;
+        private final long dropped;
+        private final long skipped;
+
+        public Stats(int pending, long pendingBytes, int dead, long deadBytes,
+                     long captured, long retried, long delivered, long failed,
+                     long deadLettered, long dropped, long skipped) {
+            this.pending = pending;
+            this.pendingBytes = pendingBytes;
+            this.dead = dead;
+            this.deadBytes = deadBytes;
+            this.captured = captured;
+            this.retried = retried;
+            this.delivered = delivered;
+            this.failed = failed;
+            this.deadLettered = deadLettered;
+            this.dropped = dropped;
+            this.skipped = skipped;
+        }
+
+        public int pending() { return pending; }
+        public long pendingBytes() { return pendingBytes; }
+        public int dead() { return dead; }
+        public long deadBytes() { return deadBytes; }
+        public long captured() { return captured; }
+        public long retried() { return retried; }
+        public long delivered() { return delivered; }
+        public long failed() { return failed; }
+        public long deadLettered() { return deadLettered; }
+        public long dropped() { return dropped; }
+        public long skipped() { return skipped; }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            Stats that = (Stats) o;
+            return java.util.Objects.equals(pending, that.pending)
+                    && java.util.Objects.equals(pendingBytes, that.pendingBytes)
+                    && java.util.Objects.equals(dead, that.dead)
+                    && java.util.Objects.equals(deadBytes, that.deadBytes)
+                    && java.util.Objects.equals(captured, that.captured)
+                    && java.util.Objects.equals(retried, that.retried)
+                    && java.util.Objects.equals(delivered, that.delivered)
+                    && java.util.Objects.equals(failed, that.failed)
+                    && java.util.Objects.equals(deadLettered, that.deadLettered)
+                    && java.util.Objects.equals(dropped, that.dropped)
+                    && java.util.Objects.equals(skipped, that.skipped);
+        }
+
+        @Override
+        public int hashCode() {
+            return java.util.Objects.hash(pending, pendingBytes, dead, deadBytes, captured,
+                    retried, delivered, failed, deadLettered, dropped, skipped);
+        }
+
+        @Override
+        public String toString() {
+            return "Stats[pending=" + pending + ", pendingBytes=" + pendingBytes + ", dead=" + dead
+                    + ", deadBytes=" + deadBytes + ", captured=" + captured + ", retried=" + retried
+                    + ", delivered=" + delivered + ", failed=" + failed + ", deadLettered=" + deadLettered
+                    + ", dropped=" + dropped + ", skipped=" + skipped + "]";
+        }
     }
 }

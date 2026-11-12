@@ -13,7 +13,44 @@ package com.towndemontower.core.audit;
  * <p>{@code at} 只是给人看的时间线索（"最后一次锚定发生在什么时候"），
  * <b>不参与任何判定</b>——本机时钟可回拨，把它当安全属性等于给自己挖坑。</p>
  */
-public record AnchorSnapshot(long records, String hash, String mac, long at) {
+public final class AnchorSnapshot {
+    private final long records;
+    private final String hash;
+    private final String mac;
+    private final long at;
+
+    public AnchorSnapshot(long records, String hash, String mac, long at) {
+        this.records = records;
+        this.hash = hash;
+        this.mac = mac;
+        this.at = at;
+    }
+
+    public long records() { return records; }
+    public String hash() { return hash; }
+    public String mac() { return mac; }
+    public long at() { return at; }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        AnchorSnapshot that = (AnchorSnapshot) o;
+        return java.util.Objects.equals(records, that.records)
+                && java.util.Objects.equals(hash, that.hash)
+                && java.util.Objects.equals(mac, that.mac)
+                && java.util.Objects.equals(at, that.at);
+    }
+
+    @Override
+    public int hashCode() {
+        return java.util.Objects.hash(records, hash, mac, at);
+    }
+
+    @Override
+    public String toString() {
+        return "AnchorSnapshot[records=" + records + ", hash=" + hash + ", mac=" + mac + ", at=" + at + "]";
+    }
 
     /** 空链的占位哈希，与 {@code HashChainAuditStore} 的 GENESIS 保持一致。 */
     public static final String GENESIS_HASH = "GENESIS";
@@ -30,7 +67,7 @@ public record AnchorSnapshot(long records, String hash, String mac, long at) {
      * @throws IllegalStateException 内容不可解析
      */
     public static AnchorSnapshot parse(String text, String origin) {
-        if (text == null || text.isBlank()) return null;
+        if (text == null || text.trim().isEmpty()) return null;
         String[] parts = text.trim().split("\t");
         if (parts.length < 3) {
             throw new IllegalStateException("锚点格式损坏（" + origin + "）：" + abbreviate(text));

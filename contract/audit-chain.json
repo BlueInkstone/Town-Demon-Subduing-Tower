@@ -1,5 +1,5 @@
 {
-  "$comment": "方向 D · 统一审计链格式（2026-11-12 定稿）。三语言共用的唯一权威；参考实现 contract/audit_chain.py，校验：python contract/audit_chain.py --verify。存量行按 chainVersion 分派只读校验，不允许就地重算。",
+  "$comment": "方向 D · 统一审计链格式（2026-11-12 定稿）。2026-11-12 网关形态拍板后：本文件仅作 Java 侧审计链内部实现参考保留；三语言互验任务已作废（docs/38），不做三语言写入侧迁移。参考实现 contract/audit_chain.py，校验：python contract/audit_chain.py --verify。",
   "version": "2.0",
   "status": "ratified",
   "ratifiedAt": "2026-11-12",

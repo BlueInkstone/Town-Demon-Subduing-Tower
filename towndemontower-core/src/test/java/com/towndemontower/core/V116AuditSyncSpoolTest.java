@@ -1,5 +1,9 @@
 package com.towndemontower.core;
 
+import java.nio.file.Paths;
+import java.util.stream.Collectors;
+import java.util.Arrays;
+
 import com.towndemontower.core.audit.AnchorReplica;
 import com.towndemontower.core.audit.AnchorSnapshot;
 import com.towndemontower.core.audit.AuditSyncSpool;
@@ -50,7 +54,7 @@ public class V116AuditSyncSpoolTest {
     }
 
     static void defaults() {
-        AuditSyncSpool spool = new AuditSyncSpool(tmp("defaults"), List.of());
+        AuditSyncSpool spool = new AuditSyncSpool(tmp("defaults"), Arrays.asList());
         check("默认-保留 7 天", spool.retentionMs() == 7L * 24 * 3600 * 1000);
         check("默认-容量 64 MiB", spool.maxBytes() == 64L * 1024 * 1024);
         check("默认-重试 5 次", spool.maxAttempts() == 5);
@@ -58,17 +62,17 @@ public class V116AuditSyncSpoolTest {
 
     static void invalidArgsRejected() throws Exception {
         check("参数-保留时长为负被拒", throwsIae(() ->
-                new AuditSyncSpool(tmp("neg-ret"), List.of(), -1, 100, 5, TimeProvider.system())));
+                new AuditSyncSpool(tmp("neg-ret"), Arrays.asList(), -1, 100, 5, TimeProvider.system())));
         check("参数-容量为负被拒", throwsIae(() ->
-                new AuditSyncSpool(tmp("neg-size"), List.of(), 1, -1, 5, TimeProvider.system())));
+                new AuditSyncSpool(tmp("neg-size"), Arrays.asList(), 1, -1, 5, TimeProvider.system())));
         check("参数-重试次数为 0 被拒", throwsIae(() ->
-                new AuditSyncSpool(tmp("zero-attempt"), List.of(), 1, 100, 0, TimeProvider.system())));
+                new AuditSyncSpool(tmp("zero-attempt"), Arrays.asList(), 1, 100, 0, TimeProvider.system())));
     }
 
     static void capturePersistsAndReplays() throws Exception {
         Path dir = tmp("capture");
         Clock clock = new Clock(1000);
-        AuditSyncSpool spool = new AuditSyncSpool(dir, List.of(fake("http://a")), 100000,
+        AuditSyncSpool spool = new AuditSyncSpool(dir, Arrays.asList(fake("http://a")), 100000,
                 1_000_000, 5, clock);
         spool.capture("http://a", snapshot(7), "HTTP 503");
 
@@ -84,7 +88,7 @@ public class V116AuditSyncSpoolTest {
         check("落盘-失败原因保留", "HTTP 503".equals(pending.get(0).lastError()));
         check("落盘-初始 attempts 为 0", pending.get(0).attempts() == 0);
 
-        AuditSyncSpool restarted = new AuditSyncSpool(dir, List.of(fake("http://a")), 100000,
+        AuditSyncSpool restarted = new AuditSyncSpool(dir, Arrays.asList(fake("http://a")), 100000,
                 1_000_000, 5, clock);
         check("重启-待补传记录不丢", restarted.pending().size() == 1);
     }
@@ -92,7 +96,7 @@ public class V116AuditSyncSpoolTest {
     static void retryDeliversAndDeletes() throws Exception {
         Path dir = tmp("deliver");
         FlakyReplica replica = new FlakyReplica("http://a", 0);
-        AuditSyncSpool spool = new AuditSyncSpool(dir, List.of(replica), 100000,
+        AuditSyncSpool spool = new AuditSyncSpool(dir, Arrays.asList(replica), 100000,
                 1_000_000, 5, TimeProvider.system());
         spool.capture("http://a", snapshot(3), "boom");
 
@@ -107,7 +111,7 @@ public class V116AuditSyncSpoolTest {
     static void retryFailureIncrementsAttempts() throws Exception {
         Path dir = tmp("retry-fail");
         FlakyReplica replica = new FlakyReplica("http://a", 100);
-        AuditSyncSpool spool = new AuditSyncSpool(dir, List.of(replica), 100000,
+        AuditSyncSpool spool = new AuditSyncSpool(dir, Arrays.asList(replica), 100000,
                 1_000_000, 5, TimeProvider.system());
         spool.capture("http://a", snapshot(3), "boom");
 
@@ -122,7 +126,7 @@ public class V116AuditSyncSpoolTest {
     static void deadLetterAfterMaxAttempts() throws Exception {
         Path dir = tmp("dead");
         FlakyReplica replica = new FlakyReplica("http://a", 100);
-        AuditSyncSpool spool = new AuditSyncSpool(dir, List.of(replica), 100000,
+        AuditSyncSpool spool = new AuditSyncSpool(dir, Arrays.asList(replica), 100000,
                 1_000_000, 3, TimeProvider.system());
         spool.capture("http://a", snapshot(9), "boom");
 
@@ -136,13 +140,13 @@ public class V116AuditSyncSpoolTest {
         check("dead-文件保留", deadCount(dir) == 1);
         check("dead-stats 计数", spool.stats().dead() == 1);
 
-        String body = Files.readString(deadFile(dir), StandardCharsets.UTF_8);
+        String body = new String(Files.readAllBytes(deadFile(dir)), StandardCharsets.UTF_8);
         check("dead-原始快照未被改写", body.contains("snapshot=" + snapshot(9)));
     }
 
     static void unknownReplicaIsSkipped() throws Exception {
         Path dir = tmp("unknown");
-        AuditSyncSpool spool = new AuditSyncSpool(dir, List.of(fake("http://other")),
+        AuditSyncSpool spool = new AuditSyncSpool(dir, Arrays.asList(fake("http://other")),
                 100000, 1_000_000, 5, TimeProvider.system());
         spool.capture("http://a", snapshot(1), "boom");
 
@@ -155,7 +159,7 @@ public class V116AuditSyncSpoolTest {
     static void cleanupByAge() throws Exception {
         Path dir = tmp("age");
         Clock clock = new Clock(10_000);
-        AuditSyncSpool spool = new AuditSyncSpool(dir, List.of(), 1000, 1_000_000, 5, clock);
+        AuditSyncSpool spool = new AuditSyncSpool(dir, Arrays.asList(), 1000, 1_000_000, 5, clock);
         spool.capture("http://a", snapshot(1), "x");
         clock.set(12_000);
         spool.capture("http://a", snapshot(2), "x");
@@ -168,7 +172,7 @@ public class V116AuditSyncSpoolTest {
     static void cleanupBySize() throws Exception {
         Path dir = tmp("size");
         Clock clock = new Clock(10_000);
-        AuditSyncSpool spool = new AuditSyncSpool(dir, List.of(), 100000, 600, 5, clock);
+        AuditSyncSpool spool = new AuditSyncSpool(dir, Arrays.asList(), 100000, 600, 5, clock);
         for (int i = 0; i < 6; i++) {
             clock.advance(1);
             spool.capture("http://a", snapshot(i), "x");
@@ -185,7 +189,7 @@ public class V116AuditSyncSpoolTest {
     static void cleanupKeepsFreshData() throws Exception {
         Path dir = tmp("fresh");
         Clock clock = new Clock(10_000);
-        AuditSyncSpool spool = new AuditSyncSpool(dir, List.of(), 100000, 1_000_000, 5, clock);
+        AuditSyncSpool spool = new AuditSyncSpool(dir, Arrays.asList(), 100000, 1_000_000, 5, clock);
         spool.capture("http://a", snapshot(1), "x");
         AuditSyncSpool.CleanupResult r = spool.cleanup();
         check("未超期-不删", r.droppedByAge() == 0 && r.droppedBySize() == 0);
@@ -194,10 +198,10 @@ public class V116AuditSyncSpoolTest {
 
     static void corruptRecordQuarantined() throws Exception {
         Path dir = tmp("corrupt");
-        AuditSyncSpool spool = new AuditSyncSpool(dir, List.of(), 100000, 1_000_000, 5,
+        AuditSyncSpool spool = new AuditSyncSpool(dir, Arrays.asList(), 100000, 1_000_000, 5,
                 TimeProvider.system());
         spool.capture("http://a", snapshot(1), "x");
-        Files.writeString(dir.resolve("spool-999-bad.rec"), "garbage\n", StandardCharsets.UTF_8);
+        Files.write(dir.resolve("spool-999-bad.rec"), "garbage\n".getBytes(StandardCharsets.UTF_8));
 
         List<AuditSyncSpool.PendingSync> pending = spool.pending();
         check("损坏-不进待补传", pending.size() == 1);
@@ -209,7 +213,7 @@ public class V116AuditSyncSpoolTest {
         Path dir = tmp("dead-age");
         Clock clock = new Clock(10_000);
         FlakyReplica replica = new FlakyReplica("http://a", 100);
-        AuditSyncSpool spool = new AuditSyncSpool(dir, List.of(replica), 1000,
+        AuditSyncSpool spool = new AuditSyncSpool(dir, Arrays.asList(replica), 1000,
                 1_000_000, 1, clock);
         spool.capture("http://a", snapshot(1), "x");
         spool.retryOnce();
@@ -225,10 +229,10 @@ public class V116AuditSyncSpoolTest {
         // 用一个"目录被占"的路径制造写入失败：把目标目录名当成普通文件占位
         Path base = tmp("capture-fail");
         Path fakeDir = base.resolve("blocked");
-        Files.writeString(fakeDir, "x", StandardCharsets.UTF_8);
+        Files.write(fakeDir, ("x").getBytes(StandardCharsets.UTF_8));
         boolean threw = false;
         try {
-            new AuditSyncSpool(fakeDir, List.of(), 1000, 1000, 5, TimeProvider.system());
+            new AuditSyncSpool(fakeDir, Arrays.asList(), 1000, 1000, 5, TimeProvider.system());
         } catch (IllegalStateException e) {
             threw = true;
         }
@@ -237,7 +241,7 @@ public class V116AuditSyncSpoolTest {
 
     static void concurrentCapture() throws Exception {
         Path dir = tmp("concurrent");
-        AuditSyncSpool spool = new AuditSyncSpool(dir, List.of(fake("http://a")), 100000,
+        AuditSyncSpool spool = new AuditSyncSpool(dir, Arrays.asList(fake("http://a")), 100000,
                 10_000_000, 5, TimeProvider.system());
         int threads = 4, each = 10;
         CountDownLatch start = new CountDownLatch(1);
@@ -269,7 +273,7 @@ public class V116AuditSyncSpoolTest {
 
     static void statsReflectActivity() throws Exception {
         Path dir = tmp("stats");
-        AuditSyncSpool spool = new AuditSyncSpool(dir, List.of(fake("http://a")), 100000,
+        AuditSyncSpool spool = new AuditSyncSpool(dir, Arrays.asList(fake("http://a")), 100000,
                 1_000_000, 5, TimeProvider.system());
         spool.capture("http://a", snapshot(1), "x");
         spool.capture("http://a", snapshot(2), "x");
@@ -337,7 +341,7 @@ public class V116AuditSyncSpoolTest {
 
     static Path tmp(String name) {
         try {
-            Path base = Path.of("target", "v116-spool");
+            Path base = Paths.get("target", "v116-spool");
             Files.createDirectories(base);
             return Files.createTempDirectory(base, name + "-");
         } catch (Exception e) {
@@ -361,14 +365,14 @@ public class V116AuditSyncSpoolTest {
 
     static Path deadFile(Path dir) throws Exception {
         try (Stream<Path> s = Files.list(dir.resolve("dead"))) {
-            return s.findFirst().orElseThrow();
+            return s.findFirst().orElseThrow(() -> new IllegalStateException("no dead file"));
         }
     }
 
     static long totalBytes(Path dir) throws Exception {
         long total = 0;
         try (Stream<Path> s = Files.list(dir)) {
-            for (Path p : s.toList()) {
+            for (Path p : s.collect(Collectors.toList())) {
                 if (!Files.isRegularFile(p)) continue;
                 total += Files.size(p);
             }
@@ -376,7 +380,7 @@ public class V116AuditSyncSpoolTest {
         Path dead = dir.resolve("dead");
         if (Files.exists(dead)) {
             try (Stream<Path> s = Files.list(dead)) {
-                for (Path p : s.toList()) {
+                for (Path p : s.collect(Collectors.toList())) {
                     if (Files.isRegularFile(p)) total += Files.size(p);
                 }
             }

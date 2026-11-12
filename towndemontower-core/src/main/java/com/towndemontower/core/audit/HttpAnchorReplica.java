@@ -1,9 +1,11 @@
 package com.towndemontower.core.audit;
 
+import com.towndemontower.core.util.IO;
+
+import java.io.IOException;
+import java.io.OutputStream;
+import java.net.HttpURLConnection;
 import java.net.URI;
-import java.net.http.HttpClient;
-import java.net.http.HttpRequest;
-import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.Locale;
@@ -21,8 +23,8 @@ import java.util.Locale;
  *   <li>{@code GET <url>}，返回最新一行的原文，{@code 204}/{@code 404} 表示"还没有"。</li>
  * </ul>
  *
- * <p>实现用的是 JDK 自带的 {@code java.net.http}，不引入任何第三方依赖——
- * 这条约束在这个项目里是硬的（core 至今零外部依赖）。</p>
+ * <p>实现用的是 JDK 自带的 {@code java.net.HttpURLConnection}（Java 8 兼容），不引入任何
+ * 第三方依赖——这条约束在这个项目里是硬的（core 至今零外部依赖）。</p>
  *
  * <p>认证：可选共享令牌，从环境变量 {@value #TOKEN_ENV} 读（与门禁密钥、调用令牌、
  * 审计密钥同一套规矩：只走环境变量，不落配置文件）。令牌以 {@code X-Anchor-Token}
@@ -43,7 +45,6 @@ public final class HttpAnchorReplica implements AnchorReplica {
     private final URI uri;
     private final String token;
     private final Duration requestTimeout;
-    private final HttpClient client;
     private final boolean offHost;
     private volatile String lastError;
 
@@ -60,18 +61,15 @@ public final class HttpAnchorReplica implements AnchorReplica {
         if (this.uri.getHost() == null) {
             throw new IllegalArgumentException("锚点副本 URL 缺少主机名：[" + url + "]");
         }
-        this.token = (token == null || token.isBlank()) ? null : token.trim();
+        this.token = (token == null || token.trim().isEmpty()) ? null : token.trim();
         this.requestTimeout = requestTimeout == null ? DEFAULT_REQUEST_TIMEOUT : requestTimeout;
-        this.client = HttpClient.newBuilder()
-                .connectTimeout(DEFAULT_CONNECT_TIMEOUT)
-                .build();
         this.offHost = !isLoopback(this.uri.getHost());
     }
 
     /** 环境变量里的令牌；未配置返回 {@code null}。 */
     public static String envToken() {
         String raw = System.getenv(TOKEN_ENV);
-        return (raw == null || raw.isBlank()) ? null : raw.trim();
+        return (raw == null || raw.trim().isEmpty()) ? null : raw.trim();
     }
 
     public URI uri() {
@@ -95,57 +93,66 @@ public final class HttpAnchorReplica implements AnchorReplica {
 
     @Override
     public void push(AnchorSnapshot snapshot) {
-        HttpRequest.Builder b = HttpRequest.newBuilder(uri)
-                .timeout(requestTimeout)
-                .header("Content-Type", "text/plain; charset=utf-8")
-                .POST(HttpRequest.BodyPublishers.ofString(snapshot.line(), StandardCharsets.UTF_8));
-        if (token != null) b.header("X-Anchor-Token", token);
-        int status;
+        HttpURLConnection conn = null;
         try {
-            HttpResponse<Void> r = client.send(b.build(), HttpResponse.BodyHandlers.discarding());
-            status = r.statusCode();
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            lastError = "请求被中断";
-            throw new IllegalStateException("锚点副本推送被中断：" + uri, e);
+            conn = open("POST");
+            conn.setDoOutput(true);
+            conn.setRequestProperty("Content-Type", "text/plain; charset=utf-8");
+            byte[] body = snapshot.line().getBytes(StandardCharsets.UTF_8);
+            try (OutputStream os = conn.getOutputStream()) {
+                os.write(body);
+            }
+            int status = conn.getResponseCode();
+            if (status / 100 != 2) {
+                lastError = "HTTP " + status;
+                throw new IllegalStateException("锚点副本拒绝写入：" + uri + " 返回 HTTP " + status);
+            }
+            lastError = null;
+        } catch (IllegalStateException e) {
+            throw e;
         } catch (Exception e) {
             lastError = e.getClass().getSimpleName() + ": " + e.getMessage();
             throw new IllegalStateException("锚点副本不可达：" + uri + "（" + lastError + "）", e);
+        } finally {
+            if (conn != null) conn.disconnect();
         }
-        if (status / 100 != 2) {
-            lastError = "HTTP " + status;
-            throw new IllegalStateException("锚点副本拒绝写入：" + uri + " 返回 HTTP " + status);
-        }
-        lastError = null;
     }
 
     @Override
     public AnchorSnapshot pull() {
-        HttpRequest.Builder b = HttpRequest.newBuilder(uri).timeout(requestTimeout).GET();
-        if (token != null) b.header("X-Anchor-Token", token);
-        HttpResponse<String> r;
+        HttpURLConnection conn = null;
         try {
-            r = client.send(b.build(), HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            lastError = "请求被中断";
-            throw new IllegalStateException("锚点副本读取被中断：" + uri, e);
+            conn = open("GET");
+            int status = conn.getResponseCode();
+            if (status == 204 || status == 404) {
+                lastError = null;
+                return null;
+            }
+            if (status / 100 != 2) {
+                lastError = "HTTP " + status;
+                throw new IllegalStateException("锚点副本读取失败：" + uri + " 返回 HTTP " + status);
+            }
+            String body = new String(IO.readAllBytes(conn.getInputStream()), StandardCharsets.UTF_8);
+            AnchorSnapshot s = AnchorSnapshot.parse(body, "副本 " + uri);
+            lastError = null;
+            return s;
+        } catch (IllegalStateException e) {
+            throw e;
         } catch (Exception e) {
             lastError = e.getClass().getSimpleName() + ": " + e.getMessage();
             throw new IllegalStateException("锚点副本不可读：" + uri + "（" + lastError + "）", e);
+        } finally {
+            if (conn != null) conn.disconnect();
         }
-        int status = r.statusCode();
-        if (status == 204 || status == 404) {
-            lastError = null;
-            return null;
-        }
-        if (status / 100 != 2) {
-            lastError = "HTTP " + status;
-            throw new IllegalStateException("锚点副本读取失败：" + uri + " 返回 HTTP " + status);
-        }
-        AnchorSnapshot s = AnchorSnapshot.parse(r.body(), "副本 " + uri);
-        lastError = null;
-        return s;
+    }
+
+    private HttpURLConnection open(String method) throws IOException {
+        HttpURLConnection conn = (HttpURLConnection) uri.toURL().openConnection();
+        conn.setRequestMethod(method);
+        conn.setConnectTimeout((int) DEFAULT_CONNECT_TIMEOUT.toMillis());
+        conn.setReadTimeout((int) requestTimeout.toMillis());
+        if (token != null) conn.setRequestProperty("X-Anchor-Token", token);
+        return conn;
     }
 
     private static boolean isLoopback(String host) {

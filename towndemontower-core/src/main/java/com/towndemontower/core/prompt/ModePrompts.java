@@ -2,6 +2,7 @@ package com.towndemontower.core.prompt;
 
 import com.towndemontower.core.mode.AgentMode;
 
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.TreeSet;
@@ -25,27 +26,30 @@ public final class ModePrompts {
 
     /** 固定前缀：角色 + 输出契约 + 该模式允许的工具（排序、稳定）。 */
     public static String prefix(AgentMode mode, Collection<String> allowedTools) {
-        String head = switch (mode) {
-            case ARCHITECT_PLANNING -> """
-                    角色：规划者。本阶段只产出计划制品与拆分后的子任务，不执行任何写操作。
-                    允许的工具仅限下列清单，清单外的工具调用会被网关拒绝。
-                    """;
-            case DEV_EXECUTION -> """
-                    角色：执行者。按已批准的计划逐项执行，每次只调用一个工具。
-                    允许的工具仅限下列清单，清单外的工具调用会被网关拒绝。
-                    """;
-            case AUDIT_REVIEWING -> """
-                    角色：审计者。本阶段只做只读检查与结论输出，不修改任何文件。
-                    允许的工具仅限下列清单，清单外的工具调用会被网关拒绝。
-                    """;
-        };
-        return head + """
-                输出格式（强制）：一个 JSON 对象，字段 tool / args / confidence / expectedEffect / rollbackHint。
-                禁止输出建议性自然语言（如"建议你执行…"），此类输出会被解析层直接拒绝。
-                confidence 低于 0.5 时将被要求补充信息，而不是被执行。
-                被拒绝时：读取返回的 code 与 message，修正参数后重试，同一意图最多重试 2 次。
-
-                """ + toolSection(allowedTools);
+        String head;
+        switch (mode) {
+            case ARCHITECT_PLANNING:
+                head = "角色：规划者。本阶段只产出计划制品与拆分后的子任务，不执行任何写操作。\n"
+                        + "允许的工具仅限下列清单，清单外的工具调用会被网关拒绝。\n";
+                break;
+            case DEV_EXECUTION:
+                head = "角色：执行者。按已批准的计划逐项执行，每次只调用一个工具。\n"
+                        + "允许的工具仅限下列清单，清单外的工具调用会被网关拒绝。\n";
+                break;
+            case AUDIT_REVIEWING:
+                head = "角色：审计者。本阶段只做只读检查与结论输出，不修改任何文件。\n"
+                        + "允许的工具仅限下列清单，清单外的工具调用会被网关拒绝。\n";
+                break;
+            default:
+                head = "";
+                break;
+        }
+        return head + "输出格式（强制）：一个 JSON 对象，字段 tool / args / confidence / expectedEffect / rollbackHint。\n"
+                + "禁止输出建议性自然语言（如\"建议你执行…\"），此类输出会被解析层直接拒绝。\n"
+                + "confidence 低于 0.5 时将被要求补充信息，而不是被执行。\n"
+                + "被拒绝时：读取返回的 code 与 message，修正参数后重试，同一意图最多重试 2 次。\n"
+                + "\n"
+                + toolSection(allowedTools);
     }
 
     private static String toolSection(Collection<String> tools) {
@@ -59,15 +63,20 @@ public final class ModePrompts {
 
     /** 当前模式的一句话职责，用于审计与看板展示。 */
     public static String responsibility(AgentMode mode) {
-        return switch (mode) {
-            case ARCHITECT_PLANNING -> "拆解需求、产出计划制品";
-            case DEV_EXECUTION -> "按批准的计划执行工具调用";
-            case AUDIT_REVIEWING -> "只读复核与结论输出";
-        };
+        switch (mode) {
+            case ARCHITECT_PLANNING:
+                return "拆解需求、产出计划制品";
+            case DEV_EXECUTION:
+                return "按批准的计划执行工具调用";
+            case AUDIT_REVIEWING:
+                return "只读复核与结论输出";
+            default:
+                return "";
+        }
     }
 
     /** 三种模式的固定前缀是否互不相同（供自检与测试使用）。 */
     public static List<AgentMode> modes() {
-        return List.of(AgentMode.ARCHITECT_PLANNING, AgentMode.DEV_EXECUTION, AgentMode.AUDIT_REVIEWING);
+        return Arrays.asList(AgentMode.ARCHITECT_PLANNING, AgentMode.DEV_EXECUTION, AgentMode.AUDIT_REVIEWING);
     }
 }

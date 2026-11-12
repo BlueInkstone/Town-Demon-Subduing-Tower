@@ -1,4 +1,5 @@
 package com.towndemontower.core.approval;
+import java.util.Arrays;
 
 import java.util.List;
 
@@ -17,6 +18,6 @@ public final class InMemoryPlanApprovalStore implements PlanApprovalStore {
 
     @Override
     public List<PlanApproval> load() {
-        return List.of();
+        return Arrays.asList();
     }
 }

@@ -1,4 +1,5 @@
 package com.towndemontower.core.gate;
+import com.towndemontower.core.util.Hex;
 
 import com.towndemontower.core.contract.ErrorCodes;
 import com.towndemontower.core.security.SecretPolicy;
@@ -6,8 +7,6 @@ import com.towndemontower.core.security.SecretPolicy;
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
 import java.nio.charset.StandardCharsets;
-import java.util.HexFormat;
-
 /**
  * [core] 门禁脚本运行器：先校验签名，再执行（失败按 maxRetry 自动重试），超限 escalate。
  *
@@ -127,7 +126,7 @@ public class GateScriptRunner {
      * 判定规则：非空、去空白后长度 ≥ {@link #MIN_KEY_LENGTH}、不在占位值清单、字符种类 ≥ 8。
      */
     public static KeyStatus classify(String raw) {
-        if (raw == null || raw.isBlank()) return KeyStatus.MISSING;
+        if (raw == null || raw.trim().isEmpty()) return KeyStatus.MISSING;
         return isValid(raw) ? KeyStatus.OK : KeyStatus.WEAK;
     }
 
@@ -174,7 +173,7 @@ public class GateScriptRunner {
             Mac mac = Mac.getInstance(ALG);
             mac.init(new SecretKeySpec(key, ALG));
             byte[] raw = mac.doFinal((s.name() + "|" + s.command()).getBytes(StandardCharsets.UTF_8));
-            return HexFormat.of().formatHex(raw);
+            return Hex.formatHex(raw);
         } catch (Exception e) {
             throw new IllegalStateException("gate signing failed", e);
         }

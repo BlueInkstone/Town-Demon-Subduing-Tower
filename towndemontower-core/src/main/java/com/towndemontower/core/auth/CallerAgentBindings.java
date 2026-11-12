@@ -1,4 +1,5 @@
 package com.towndemontower.core.auth;
+import java.util.Arrays;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -61,19 +62,19 @@ public final class CallerAgentBindings {
         // 用 LinkedHashMap 保持配置书写顺序：Map.copyOf 不保证迭代顺序（每个 JVM 的 SALT 不同），
         // 会让启动日志里列出的绑定顺序随机跳动，排查时误以为配置被人改过。
         this.bindings = Collections.unmodifiableMap(new LinkedHashMap<>(bindings));
-        this.rejected = List.copyOf(rejected);
+        this.rejected = new ArrayList<>(rejected);
         this.envPresent = envPresent;
     }
 
     /** 空表：不启用绑定校验。 */
     public static CallerAgentBindings none() {
-        return new CallerAgentBindings(Map.of(), List.of(), false);
+        return new CallerAgentBindings(Collections.emptyMap(), Arrays.asList(), false);
     }
 
     /** 从环境变量装配。未设置或全不合格 → 空表，不做任何默认值兜底。 */
     public static CallerAgentBindings fromEnv() {
         String raw = System.getenv(ENV);
-        if (raw == null || raw.isBlank()) return none();
+        if (raw == null || raw.trim().isEmpty()) return none();
         return parse(raw);
     }
 
@@ -86,7 +87,7 @@ public final class CallerAgentBindings {
     public static CallerAgentBindings parse(String raw) {
         Map<String, String> map = new LinkedHashMap<>();
         List<String> rejected = new ArrayList<>();
-        if (raw == null || raw.isBlank()) {
+        if (raw == null || raw.trim().isEmpty()) {
             return new CallerAgentBindings(map, rejected, false);
         }
         Set<String> seen = new LinkedHashSet<>();
@@ -96,7 +97,7 @@ public final class CallerAgentBindings {
         // 宽容仅限空白位置：两侧取值仍必须匹配名称规则，不放宽任何安全判定。
         String normalized = raw.replaceAll("\\s*:\\s*", ":");
         for (String entry : normalized.split("[,;\\s]+")) {
-            if (entry.isBlank()) continue;
+            if (entry.trim().isEmpty()) continue;
             int idx = entry.indexOf(':');
             if (idx <= 0 || idx == entry.length() - 1) {
                 rejected.add((idx < 0 ? entry : entry.substring(0, idx))
@@ -147,7 +148,7 @@ public final class CallerAgentBindings {
 
     /** 已绑定的调用者名称（保持配置书写顺序）。 */
     public List<String> callers() {
-        return List.copyOf(bindings.keySet());
+        return new ArrayList<>(bindings.keySet());
     }
 
     /** 已绑定调用者 → Agent ID（不可变副本，保持书写顺序）。 */

@@ -33,7 +33,7 @@ public enum AuthMode {
 
     /** 宽松解析：未知值返回 {@code null}，由调用方决定是报错还是回落默认。 */
     public static AuthMode parse(String raw) {
-        if (raw == null || raw.isBlank()) return null;
+        if (raw == null || raw.trim().isEmpty()) return null;
         String v = raw.trim().toUpperCase(Locale.ROOT).replace('-', '_');
         if ("NONE".equals(v) || "DISABLED".equals(v)) return OFF;
         if ("LOCAL".equals(v) || "LOCALHOST".equals(v)) return LOOPBACK;

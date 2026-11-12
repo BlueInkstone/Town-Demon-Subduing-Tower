@@ -1,4 +1,6 @@
 package com.towndemontower.core.context;
+import java.util.stream.Collectors;
+import java.util.Arrays;
 
 import com.towndemontower.core.contract.RiskLevel;
 import com.towndemontower.core.metrics.GovernanceMetrics;
@@ -73,24 +75,24 @@ public class ContextBuilder {
 
         String dynamic = dynamicSection(mode, taskBrief, state);
         return new PromptAssembly(prefix, dynamic, cacheKey, model,
-                new TreeSet<>(allowedTools == null ? List.of() : allowedTools).stream().toList(), hit);
+                new TreeSet<>(allowedTools == null ? Arrays.asList() : allowedTools).stream().collect(Collectors.toList()), hit);
     }
 
     private String dynamicSection(AgentMode mode, String taskBrief, PipelineState state) {
         StringBuilder sb = new StringBuilder();
         sb.append("【当前阶段】").append(ModePrompts.responsibility(mode)).append('\n');
-        sb.append("【任务】").append(taskBrief == null || taskBrief.isBlank() ? "（未提供）" : taskBrief).append('\n');
+        sb.append("【任务】").append(taskBrief == null || taskBrief.trim().isEmpty() ? "（未提供）" : taskBrief).append('\n');
         if (state != null) {
             if (state.subTasks != null && state.subTasks.length > 0) {
                 sb.append("【子任务】").append(String.join(" / ", state.subTasks)).append('\n');
             }
-            if (state.planArtifactRef != null && !state.planArtifactRef.isBlank()) {
+            if (state.planArtifactRef != null && !state.planArtifactRef.trim().isEmpty()) {
                 sb.append("【计划引用】").append(state.planArtifactRef).append('\n');
             }
-            if (state.gateResults != null && !state.gateResults.isBlank()) {
+            if (state.gateResults != null && !state.gateResults.trim().isEmpty()) {
                 sb.append("【上一次门禁结果】").append(state.gateResults).append('\n');
             }
-            if (state.lastDecision != null && !state.lastDecision.isBlank()) {
+            if (state.lastDecision != null && !state.lastDecision.trim().isEmpty()) {
                 sb.append("【上一次裁决】").append(state.lastDecision).append('\n');
             }
         }

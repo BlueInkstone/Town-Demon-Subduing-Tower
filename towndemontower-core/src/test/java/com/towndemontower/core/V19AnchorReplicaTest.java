@@ -1,5 +1,9 @@
 package com.towndemontower.core;
 
+import java.nio.file.Paths;
+import com.towndemontower.core.util.IO;
+import java.util.Arrays;
+
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 import com.sun.net.httpserver.HttpServer;
@@ -138,15 +142,13 @@ public class V19AnchorReplicaTest {
         Path ledger2 = dir.resolve("rollback.ledger");
         FileAnchorReplica r2 = new FileAnchorReplica(ledger2, KEY);
         r2.push(new AnchorSnapshot(9, "h9", "m9", 3L));
-        Files.writeString(ledger2, "records=2\thash=h2\tmac=-\tat=1\n", StandardCharsets.UTF_8);
+        Files.write(ledger2, ("records=2\thash=h2\tmac=-\tat=1\n").getBytes(StandardCharsets.UTF_8));
         String err2 = pullError(new FileAnchorReplica(ledger2, KEY));
         check("文件副本-改写账本被链路校验挡住", err2 != null && err2.contains("链路断裂"));
 
         // 无密钥时 MAC 不可校验，靠"条数只能增"这条兜住同一类改写
         Path ledger2b = dir.resolve("rollback-nokey.ledger");
-        Files.writeString(ledger2b,
-                "records=9\thash=h9\tmac=-\tat=1\nrecords=2\thash=h2\tmac=-\tat=2\n",
-                StandardCharsets.UTF_8);
+        Files.write(ledger2b, ("records=9\thash=h9\tmac=-\tat=1\nrecords=2\thash=h2\tmac=-\tat=2\n").getBytes(StandardCharsets.UTF_8));
         String err2b = pullError(new FileAnchorReplica(ledger2b, null));
         check("文件副本-无密钥时靠单调性发现回滚", err2b != null && err2b.contains("回滚"));
 
@@ -204,13 +206,13 @@ public class V19AnchorReplicaTest {
         Path log = dir.resolve("audit.log");
         Path ledger = dir.resolve("anchor.ledger");
         FileAnchorReplica replica = new FileAnchorReplica(ledger, KEY);
-        FileAuditStore s = new FileAuditStore(log, KEY, 1, 0, List.of(replica), true);
+        FileAuditStore s = new FileAuditStore(log, KEY, 1, 0, Arrays.asList(replica), true);
         for (int i = 0; i < 5; i++) s.appendAuto("A", "p" + i);
         eq("启动-副本跟上写入", replica.pull().records(), 5L);
         s.flushAnchor();
 
         FileAuditStore reopen = new FileAuditStore(log, KEY, 1, 0,
-                List.of(new FileAnchorReplica(ledger, KEY)), true);
+                Arrays.asList(new FileAnchorReplica(ledger, KEY)), true);
         eq("启动-一致时正常打开", reopen.anchorRecords(), 5L);
         List<AnchorReplicaState> states = reopen.replicaStates();
         eq("启动-核对结果个数", states.size(), 1);
@@ -227,7 +229,7 @@ public class V19AnchorReplicaTest {
         s2.flushAnchor();
         new FileAnchorReplica(ledger2, KEY).push(new AnchorSnapshot(1, "h1", "m1", 1L));
         FileAuditStore reopen2 = new FileAuditStore(log2, KEY, 1, 0,
-                List.of(new FileAnchorReplica(ledger2, KEY)), true);
+                Arrays.asList(new FileAnchorReplica(ledger2, KEY)), true);
         eq("启动-副本落后不阻断", reopen2.anchorRecords(), 4L);
         check("启动-落后状态可读", reopen2.startupReplicaStates().get(0).readable());
         eq("启动-落后条数如实报告", reopen2.startupReplicaStates().get(0).records(), 1L);
@@ -242,13 +244,13 @@ public class V19AnchorReplicaTest {
         Path log3 = dir3.resolve("audit.log");
         Path ledger3 = dir3.resolve("anchor.ledger");
         FileAnchorReplica rep3 = new FileAnchorReplica(ledger3, KEY);
-        FileAuditStore s3 = new FileAuditStore(log3, KEY, 1, 0, List.of(rep3), true);
+        FileAuditStore s3 = new FileAuditStore(log3, KEY, 1, 0, Arrays.asList(rep3), true);
         for (int i = 0; i < 5; i++) s3.appendAuto("A", "p" + i);
         s3.flushAnchor();
         Files.deleteIfExists(log3);
         Files.deleteIfExists(dir3.resolve("audit.log.anchor"));
         String rollback = openError(() -> new FileAuditStore(log3, KEY, 1, 0,
-                List.of(new FileAnchorReplica(ledger3, KEY)), true));
+                Arrays.asList(new FileAnchorReplica(ledger3, KEY)), true));
         check("启动-整目录回滚被检出", rollback != null && rollback.contains("回滚或删除"));
 
         // 回滚到中间：日志只剩前 2 条
@@ -256,7 +258,7 @@ public class V19AnchorReplicaTest {
         Path log4 = dir4.resolve("audit.log");
         Path ledger4 = dir4.resolve("anchor.ledger");
         FileAnchorReplica rep4 = new FileAnchorReplica(ledger4, KEY);
-        FileAuditStore s4 = new FileAuditStore(log4, KEY, 1, 0, List.of(rep4), true);
+        FileAuditStore s4 = new FileAuditStore(log4, KEY, 1, 0, Arrays.asList(rep4), true);
         for (int i = 0; i < 5; i++) s4.appendAuto("A", "p" + i);
         s4.flushAnchor();
         List<String> keep = new ArrayList<>();
@@ -264,7 +266,7 @@ public class V19AnchorReplicaTest {
         for (String line : Files.readAllLines(log4)) {
             if (line.startsWith("#SEGMENT")) {
                 keep.add(line);
-            } else if (!line.isBlank() && dataLines < 2) {
+            } else if (!line.trim().isEmpty() && dataLines < 2) {
                 keep.add(line);
                 dataLines++;
             }
@@ -272,7 +274,7 @@ public class V19AnchorReplicaTest {
         Files.write(log4, keep);
         Files.deleteIfExists(log4.resolveSibling("audit.log.anchor"));
         String partial = openError(() -> new FileAuditStore(log4, KEY, 1, 0,
-                List.of(new FileAnchorReplica(ledger4, KEY)), true));
+                Arrays.asList(new FileAnchorReplica(ledger4, KEY)), true));
         check("启动-回滚到中间也被检出", partial != null && partial.contains("回滚或删除"));
 
         // 同条数不同哈希：副本属于另一条链
@@ -280,7 +282,7 @@ public class V19AnchorReplicaTest {
         Path log5 = dir5.resolve("audit.log");
         Path ledger5 = dir5.resolve("anchor.ledger");
         FileAnchorReplica rep5 = new FileAnchorReplica(ledger5, KEY);
-        FileAuditStore s5 = new FileAuditStore(log5, KEY, 1, 0, List.of(rep5), true);
+        FileAuditStore s5 = new FileAuditStore(log5, KEY, 1, 0, Arrays.asList(rep5), true);
         for (int i = 0; i < 3; i++) s5.appendAuto("A", "p" + i);
         s5.flushAnchor();
         // 用同一把钥匙追加一条"同条数、不同哈希"的合法副本行：
@@ -288,7 +290,7 @@ public class V19AnchorReplicaTest {
         rep5.push(new AnchorSnapshot(3, "deadbeef", "ignored", 9L));
         eq("启动-伪造副本链路自洽", new FileAnchorReplica(ledger5, KEY).pull().records(), 3L);
         String conflict = openError(() -> new FileAuditStore(log5, KEY, 1, 0,
-                List.of(new FileAnchorReplica(ledger5, KEY)), true));
+                Arrays.asList(new FileAnchorReplica(ledger5, KEY)), true));
         check("启动-同条数不同哈希被检出", conflict != null
                 && (conflict.contains("不一致") || conflict.contains("另一条")));
 
@@ -296,7 +298,7 @@ public class V19AnchorReplicaTest {
         int dead = freePort();
         Path dir6 = tmp();
         FileAuditStore lenient = new FileAuditStore(dir6.resolve("audit.log"), KEY, 1, 0,
-                List.of(new HttpAnchorReplica("http://127.0.0.1:" + dead + "/a", null,
+                Arrays.asList(new HttpAnchorReplica("http://127.0.0.1:" + dead + "/a", null,
                         java.time.Duration.ofSeconds(1))), false);
         eq("启动-副本不可读但降级放行", lenient.replicaStates().size(), 1);
         check("启动-降级时记录错误", !lenient.replicaStates().get(0).readable());
@@ -305,7 +307,7 @@ public class V19AnchorReplicaTest {
 
         // 副本不可读 + required=true → 拒绝启动
         String strict = openError(() -> new FileAuditStore(dir6.resolve("strict.log"), KEY, 1, 0,
-                List.of(new HttpAnchorReplica("http://127.0.0.1:" + dead + "/a", null,
+                Arrays.asList(new HttpAnchorReplica("http://127.0.0.1:" + dead + "/a", null,
                         java.time.Duration.ofSeconds(1))), true));
         check("启动-副本不可读且required拒绝启动", strict != null && strict.contains("不可读"));
     }
@@ -317,7 +319,7 @@ public class V19AnchorReplicaTest {
         Path dir = tmp();
 
         FileAuditStore loud = new FileAuditStore(dir.resolve("loud.log"), KEY, 1, 0,
-                List.of(new HttpAnchorReplica("http://127.0.0.1:" + dead + "/a", null,
+                Arrays.asList(new HttpAnchorReplica("http://127.0.0.1:" + dead + "/a", null,
                         java.time.Duration.ofSeconds(1))), false);
         loud.appendAuto("A", "1");
         eq("推送-降级模式不抛", loud.all().size(), 1);
@@ -329,7 +331,7 @@ public class V19AnchorReplicaTest {
         String err = null;
         try {
             strict = new FileAuditStore(dir.resolve("strict.log"), KEY, 1, 0,
-                    List.of(new HttpAnchorReplica("http://127.0.0.1:" + dead + "/a", null,
+                    Arrays.asList(new HttpAnchorReplica("http://127.0.0.1:" + dead + "/a", null,
                             java.time.Duration.ofSeconds(1))), false);
         } catch (RuntimeException e) {
             err = e.getMessage();
@@ -338,7 +340,7 @@ public class V19AnchorReplicaTest {
 
         FileAuditStore strict2 = null;
         try {
-            strict2 = new FileAuditStore(dir.resolve("strict2.log"), KEY, 1, 0, List.of(), true);
+            strict2 = new FileAuditStore(dir.resolve("strict2.log"), KEY, 1, 0, Arrays.asList(), true);
             strict2.appendAuto("A", "1");
         } catch (RuntimeException e) {
             err = e.getMessage();
@@ -347,7 +349,7 @@ public class V19AnchorReplicaTest {
 
         // 本地写成功的记录不会因为副本失败而消失：证据在，只是缺一份异地拷贝
         FileAuditStore half = new FileAuditStore(dir.resolve("half.log"), KEY, 1, 0,
-                List.of(new HttpAnchorReplica("http://127.0.0.1:" + dead + "/a", null,
+                Arrays.asList(new HttpAnchorReplica("http://127.0.0.1:" + dead + "/a", null,
                         java.time.Duration.ofSeconds(1))), false);
         half.appendAuto("A", "keep-me");
         check("推送-失败不影响本地链", half.verifyChain());
@@ -420,7 +422,7 @@ public class V19AnchorReplicaTest {
         public void handle(HttpExchange ex) throws IOException {
             token = ex.getRequestHeaders().getFirst("X-Anchor-Token");
             if ("POST".equalsIgnoreCase(ex.getRequestMethod())) {
-                last = new String(ex.getRequestBody().readAllBytes(), StandardCharsets.UTF_8).trim();
+                last = new String(IO.readAllBytes(ex.getRequestBody()), StandardCharsets.UTF_8).trim();
                 pushCount++;
                 ex.sendResponseHeaders(failStatus, -1);
             } else if (last == null) {
@@ -437,7 +439,7 @@ public class V19AnchorReplicaTest {
     }
 
     static Path tmp() throws IOException {
-        Path dir = Path.of("target", "replica-" + UUID.randomUUID());
+        Path dir = Paths.get("target", "replica-" + UUID.randomUUID());
         Files.createDirectories(dir);
         return dir;
     }

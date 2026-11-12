@@ -1,0 +1,43 @@
+{
+  "title": "墨铠网关协议 golden（docs/38 改动④ / 测试 GW-01）",
+  "status": "ratified",
+  "ratifiedAt": "2026-11-12",
+  "assumptions": "以下用例假设默认服务端配置：agentId=gateway-default-agent、mode=DEV_EXECUTION、tainted=false，且已对该身份授予已注册工具所需权限。",
+  "cases": [
+    {
+      "id": "allow-runCompile",
+      "intent": { "tool": "runCompile", "args": { "module": "billing" }, "confidence": 0.9, "reason": "编译模块", "expectedEffect": "产出构建产物", "rollbackHint": "无" },
+      "expected": { "success": true, "code": "OK" }
+    },
+    {
+      "id": "deny-deleteData",
+      "intent": { "tool": "deleteData", "args": { "table": "tmp" }, "confidence": 0.9, "reason": "清理过期表", "expectedEffect": "表被删除", "rollbackHint": "无" },
+      "expected": { "success": false, "code": "R3_DENIED" }
+    },
+    {
+      "id": "pending-deployService",
+      "intent": { "tool": "deployService", "args": { "target": "prod", "version": "1.2.3" }, "confidence": 0.95, "reason": "发布新版本", "expectedEffect": "服务上线", "rollbackHint": "回滚到上一版本" },
+      "expected": { "success": false, "code": "PENDING_APPROVAL" }
+    },
+    {
+      "id": "invalid-suggestion",
+      "intent": { "tool": "runCompile", "args": { "module": "x" }, "confidence": 0.9, "reason": "建议你执行编译", "expectedEffect": "x", "rollbackHint": "无" },
+      "expected": { "success": false, "code": "INTENT_FORMAT_INVALID" }
+    },
+    {
+      "id": "missing-tool",
+      "intent": { "tool": "", "args": {}, "confidence": 0.9, "reason": "x", "expectedEffect": "x", "rollbackHint": "x" },
+      "expected": { "success": false, "code": "INTENT_FORMAT_INVALID" }
+    },
+    {
+      "id": "low-confidence",
+      "intent": { "tool": "runCompile", "args": { "module": "x" }, "confidence": 0.1, "reason": "不确定", "expectedEffect": "x", "rollbackHint": "无" },
+      "expected": { "success": false, "code": "NEED_MORE_INFO" }
+    },
+    {
+      "id": "oversized-arg",
+      "intent": { "tool": "runCompile", "args": { "module": "x" }, "confidence": 0.9, "reason": "x", "expectedEffect": "x", "rollbackHint": "无", "_note": "实际发送时 module 为 >1MiB 字符串" },
+      "expected": { "success": false, "code": "INPUT_REJECTED" }
+    }
+  ]
+}

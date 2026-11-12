@@ -1,5 +1,7 @@
 package com.towndemontower.core.audit;
 
+
+import java.nio.file.Paths;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
@@ -30,13 +32,13 @@ public final class AuditReplicas {
 
     public static List<AnchorReplica> parse(String spec, byte[] key, String token) {
         List<AnchorReplica> out = new ArrayList<>();
-        if (spec == null || spec.isBlank()) return List.copyOf(out);
+        if (spec == null || spec.trim().isEmpty()) return new ArrayList<>(out);
         for (String raw : spec.split("[,;]")) {
             String entry = raw.trim();
             if (entry.isEmpty()) continue;
             out.add(one(entry, key, token));
         }
-        return List.copyOf(out);
+        return new ArrayList<>(out);
     }
 
     private static AnchorReplica one(String entry, byte[] key, String token) {
@@ -59,6 +61,6 @@ public final class AuditReplicas {
         if (p.isEmpty()) {
             throw new IllegalArgumentException("锚点副本路径为空：[" + entry + "]");
         }
-        return Path.of(p);
+        return Paths.get(p);
     }
 }

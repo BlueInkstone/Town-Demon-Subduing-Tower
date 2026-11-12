@@ -20,7 +20,9 @@
     <description>Agent 员工花名册：把每个 Agent 当作一名数字员工登记（工号/姓名/岗位/入职时间/在职状态/可用技能/权限/模型档位）；员工档案是 RBAC 权限的权威来源，入职授予、离职停用即回收。</description>
 
     <properties>
-        <java.version>25</java.version>
+        <!-- 编译目标统一为 17（class 61）：25（class 69）超出 Spring Boot 3.2.5 内嵌 ASM 的读取上限，
+             Spring 扫描自动配置类时会 ClassFormatException。core / gateway 则是 Java 8。 -->
+        <java.version>17</java.version>
         <!-- 本地仓库缺少 BOM 默认的 tomcat 10.1.19，锁到已缓存的 10.1.20 以保证离线可解析 -->
         <tomcat.version>10.1.20</tomcat.version>
         <!-- OpenAPI/Swagger UI：2.3.0 与 Spring Boot 3.2.x 匹配，本地仓库已缓存 -->

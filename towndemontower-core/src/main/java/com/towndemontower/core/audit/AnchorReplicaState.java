@@ -12,7 +12,49 @@ package com.towndemontower.core.audit;
  * @param hash    副本记住的哈希；读不出来时为 {@code null}
  * @param error   读取失败原因；正常为 {@code null}
  */
-public record AnchorReplicaState(String name, boolean offHost, long records, String hash, String error) {
+public final class AnchorReplicaState {
+    private final String name;
+    private final boolean offHost;
+    private final long records;
+    private final String hash;
+    private final String error;
+
+    public AnchorReplicaState(String name, boolean offHost, long records, String hash, String error) {
+        this.name = name;
+        this.offHost = offHost;
+        this.records = records;
+        this.hash = hash;
+        this.error = error;
+    }
+
+    public String name() { return name; }
+    public boolean offHost() { return offHost; }
+    public long records() { return records; }
+    public String hash() { return hash; }
+    public String error() { return error; }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        AnchorReplicaState that = (AnchorReplicaState) o;
+        return java.util.Objects.equals(name, that.name)
+                && java.util.Objects.equals(offHost, that.offHost)
+                && java.util.Objects.equals(records, that.records)
+                && java.util.Objects.equals(hash, that.hash)
+                && java.util.Objects.equals(error, that.error);
+    }
+
+    @Override
+    public int hashCode() {
+        return java.util.Objects.hash(name, offHost, records, hash, error);
+    }
+
+    @Override
+    public String toString() {
+        return "AnchorReplicaState[name=" + name + ", offHost=" + offHost + ", records=" + records
+                + ", hash=" + hash + ", error=" + error + "]";
+    }
 
     /** 是否成功读到（不代表与本地一致——一致性由启动校验负责）。 */
     public boolean readable() {

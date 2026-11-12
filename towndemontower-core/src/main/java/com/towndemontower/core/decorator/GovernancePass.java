@@ -46,7 +46,40 @@ public final class GovernancePass {
     public static final String BYPASS_AUDIT_CODE = "GOVERNANCE_BYPASS_ISSUED";
 
     /** 一次调用的令牌帧：工具名 + 本次链装配的上报端（避免全局单例串味）。 */
-    private record Frame(String tool, AuditStore audit, GovernanceMetrics metrics) {
+    private static final class Frame {
+        private final String tool;
+        private final AuditStore audit;
+        private final GovernanceMetrics metrics;
+
+        Frame(String tool, AuditStore audit, GovernanceMetrics metrics) {
+            this.tool = tool;
+            this.audit = audit;
+            this.metrics = metrics;
+        }
+
+        public String tool() { return tool; }
+        public AuditStore audit() { return audit; }
+        public GovernanceMetrics metrics() { return metrics; }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            Frame that = (Frame) o;
+            return java.util.Objects.equals(tool, that.tool)
+                    && java.util.Objects.equals(audit, that.audit)
+                    && java.util.Objects.equals(metrics, that.metrics);
+        }
+
+        @Override
+        public int hashCode() {
+            return java.util.Objects.hash(tool, audit, metrics);
+        }
+
+        @Override
+        public String toString() {
+            return "Frame[tool=" + tool + ", audit=" + audit + ", metrics=" + metrics + "]";
+        }
     }
 
     private static final ThreadLocal<Deque<Frame>> ACTIVE = ThreadLocal.withInitial(ArrayDeque::new);
@@ -178,7 +211,7 @@ public final class GovernancePass {
      * 指标 Bean，由它带进来才能保证"弃权"这件事落在真正那条链上。</p>
      */
     public static AutoCloseable bypassScope(String reason, AuditStore audit, GovernanceMetrics metrics) {
-        if (reason == null || reason.isBlank()) {
+        if (reason == null || reason.trim().isEmpty()) {
             throw new IllegalArgumentException("GovernancePass.bypassScope(reason) 的理由不能为空");
         }
         Integer current = BYPASS.get();

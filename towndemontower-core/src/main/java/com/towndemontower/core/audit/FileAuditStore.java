@@ -1,5 +1,8 @@
 package com.towndemontower.core.audit;
 
+import java.util.HashSet;
+import java.util.Arrays;
+
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -87,7 +90,7 @@ public class FileAuditStore extends HashChainAuditStore {
      * 于是 {@link #replicaStates()} 里的落后量立刻变成 0。而"启动时副本落后多少"
      * 本身是有用的诊断（副本是不是长期没收到推送？），不该被这次修复动作抹掉。</p>
      */
-    private List<AnchorReplicaState> startupReplicaStates = List.of();
+    private List<AnchorReplicaState> startupReplicaStates = Arrays.asList();
 
     public FileAuditStore(Path file) {
         this(file, AuditCrypto.envKey());
@@ -103,7 +106,7 @@ public class FileAuditStore extends HashChainAuditStore {
      * @param anchorIntervalMs 距上次追平超过该毫秒数也追平一次，{@code <= 0} 表示不按时间
      */
     public FileAuditStore(Path file, byte[] auditKey, int anchorBatch, long anchorIntervalMs) {
-        this(file, auditKey, anchorBatch, anchorIntervalMs, List.of(), false);
+        this(file, auditKey, anchorBatch, anchorIntervalMs, Arrays.asList(), false);
     }
 
     /**
@@ -158,11 +161,10 @@ public class FileAuditStore extends HashChainAuditStore {
             }
             // 本地锚点只能证明"本地这套文件自洽"——整个目录被回滚到旧快照时它一样自洽。
             // 副本在这里的作用就是把"当时确实写到过 N 条"这句外部证词拿回来比对。
-            this.startupReplicaStates = List.copyOf(anchor.verifyReplicas(records, tail));
+            this.startupReplicaStates = new ArrayList<>(anchor.verifyReplicas(records, tail));
 
-            Files.writeString(file, "\n" + SEGMENT_PREFIX + " " + UUID.randomUUID()
-                            + " prev=" + lastSegmentTail(file) + "\n",
-                    StandardCharsets.UTF_8,
+            Files.write(file, ("\n" + SEGMENT_PREFIX + " " + UUID.randomUUID()
+                            + " prev=" + lastSegmentTail(file) + "\n").getBytes(StandardCharsets.UTF_8),
                     StandardOpenOption.CREATE, StandardOpenOption.APPEND);
             restrictPermissions(file);
             // 初始化 / 校正锚点：旧日志没有锚点时，以"当前状态"为基线（首次受保护点）
@@ -270,7 +272,7 @@ public class FileAuditStore extends HashChainAuditStore {
         String line = r.seq + "\t" + safe(r.action) + "\t" + safe(r.hash) + "\t" + safe(r.payload) + "\n";
         ioLock.lock();
         try {
-            Files.writeString(file, line, StandardCharsets.UTF_8, StandardOpenOption.APPEND);
+            Files.write(file, (line).getBytes(StandardCharsets.UTF_8), StandardOpenOption.APPEND);
             written++;
             if (anchorDue()) {
                 anchor.write(written, r.hash);
@@ -314,7 +316,7 @@ public class FileAuditStore extends HashChainAuditStore {
         Scan out = new Scan();
         String prev = GENESIS;
         for (String line : Files.readAllLines(file, StandardCharsets.UTF_8)) {
-            if (line == null || line.isBlank()) continue;
+            if (line == null || line.trim().isEmpty()) continue;
             if (line.startsWith(SEGMENT_PREFIX)) {
                 // 段头不影响记录计数；每段内部重新从 GENESIS 起链
                 prev = GENESIS;
@@ -356,7 +358,7 @@ public class FileAuditStore extends HashChainAuditStore {
         List<String> lines = Files.readAllLines(file, StandardCharsets.UTF_8);
         for (int i = lines.size() - 1; i >= 0; i--) {
             String line = lines.get(i);
-            if (line == null || line.isBlank()) continue;
+            if (line == null || line.trim().isEmpty()) continue;
             if (line.startsWith(SEGMENT_PREFIX)) return GENESIS;
             String[] p = line.split("\t", 4);
             if (p.length >= 3) return p[2];
@@ -366,7 +368,7 @@ public class FileAuditStore extends HashChainAuditStore {
 
     private static void restrictPermissions(Path file) {
         try {
-            Set<PosixFilePermission> perms = Set.of(PosixFilePermission.OWNER_READ, PosixFilePermission.OWNER_WRITE);
+            Set<PosixFilePermission> perms = new HashSet<>(Arrays.asList(PosixFilePermission.OWNER_READ, PosixFilePermission.OWNER_WRITE));
             Files.setPosixFilePermissions(file, perms);
         } catch (UnsupportedOperationException | IOException ignored) {
             // Windows 不支持 POSIX 权限，交由目录 ACL；此处不阻断
@@ -382,7 +384,7 @@ public class FileAuditStore extends HashChainAuditStore {
         try {
             int n = 0;
             for (String line : new ArrayList<>(Files.readAllLines(file, StandardCharsets.UTF_8))) {
-                if (line != null && !line.isBlank() && !line.startsWith(SEGMENT_PREFIX)) n++;
+                if (line != null && !line.trim().isEmpty() && !line.startsWith(SEGMENT_PREFIX)) n++;
             }
             return n;
         } catch (IOException e) {

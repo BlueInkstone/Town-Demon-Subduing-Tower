@@ -159,10 +159,10 @@ public class ApprovalCenter {
 
     private void loadFromDisk() {
         if (dir == null || !Files.isDirectory(dir)) return;
-        try (var stream = Files.list(dir)) {
+        try (java.util.stream.Stream<java.nio.file.Path> stream = Files.list(dir)) {
             stream.filter(p -> p.getFileName().toString().endsWith(".ticket")).forEach(p -> {
                 try {
-                    String line = Files.readString(p, StandardCharsets.UTF_8).trim();
+                    String line = new String(Files.readAllBytes(p), StandardCharsets.UTF_8).trim();
                     ApprovalRecord r = ApprovalRecord.parse(line);
                     if (r != null) records.putIfAbsent(r.id, r);
                 } catch (IOException ignored) {
