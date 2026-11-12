@@ -2,6 +2,8 @@
  * 契约层 - 对齐 core/contract/ 模块
  */
 
+import { SUCCESS_CODE, canonicalCode } from "./codes";
+
 /** 风险级别 */
 export enum RiskLevel {
   R0 = "R0",  // 只读操作
@@ -86,28 +88,94 @@ export function createContext(
   });
 }
 
-/** 技能执行结果 - 对齐 core SkillResult.java */
+/**
+ * 技能执行结果。
+ * wire 字段集固定为 success / code / message / output / approvalTicketId，见 toWire()。
+ * errorCode / errorMessage / ticketId / auditId 是 SDK 本地扩展，保留以兼容既有调用方；
+ * schema 明确禁止它们进入 wire。
+ */
 export interface SkillResult {
   readonly success: boolean;
   readonly output?: unknown;
+  // 兼容字段（既有调用方与 101 项测试仍在用）
   readonly errorCode?: ErrorCode | string;
   readonly errorMessage?: string;
   readonly ticketId?: string;
   readonly auditId?: string;
+  // 规范字段（方向 D 定稿）
+  readonly code?: string;
+  readonly message?: string | null;
+  readonly approvalTicketId?: string | null;
 }
 
-/** 成功结果 */
+/** 统一 wire 结构：恰好 5 个 camelCase 字段，缺失项显式为 null，不含本地扩展。 */
+export interface SkillResultWire {
+  readonly success: boolean;
+  readonly code: string;
+  readonly message: string | null;
+  readonly output: unknown;
+  readonly approvalTicketId: string | null;
+}
+
+/** 成功结果；规范码固定 OK。 */
 export function ok(output?: unknown, auditId?: string): SkillResult {
-  return Object.freeze({ success: true, output, auditId });
+  return Object.freeze({
+    success: true,
+    output,
+    auditId,
+    code: SUCCESS_CODE,
+    message: null,
+    approvalTicketId: null,
+  });
 }
 
-/** 失败结果 */
+/** 失败结果；errorCode 保留输入别名，code / wire 输出用规范码。 */
 export function fail(
   errorCode: ErrorCode | string,
   errorMessage: string,
   ticketId?: string,
 ): SkillResult {
-  return Object.freeze({ success: false, errorCode, errorMessage, ticketId });
+  return Object.freeze({
+    success: false,
+    errorCode,
+    errorMessage,
+    ticketId,
+    code: canonicalCode(errorCode) ?? String(errorCode),
+    message: errorMessage,
+    approvalTicketId: ticketId ?? null,
+  });
+}
+
+/**
+ * 输出统一 wire。对只带旧字段的对象（如执行器直接构造的结果）也能推导：
+ * code 从规范字段 → 旧 errorCode 归一 → 成功 OK / 失败 INTERNAL_ERROR 逐级兜底。
+ */
+export function toWire(r: SkillResult): SkillResultWire {
+  const code = r.code
+    ?? canonicalCode(r.errorCode)
+    ?? (r.success ? SUCCESS_CODE : "INTERNAL_ERROR");
+  return Object.freeze({
+    success: r.success,
+    code,
+    message: r.message ?? r.errorMessage ?? null,
+    output: r.output ?? null,
+    approvalTicketId: r.approvalTicketId ?? r.ticketId ?? null,
+  });
+}
+
+/** 从统一 wire 还原；只认 5 个规范字段，同时补齐本地兼容字段。 */
+export function fromWire(w: SkillResultWire): SkillResult {
+  return Object.freeze({
+    success: w.success,
+    output: w.output,
+    errorCode: w.success ? undefined : w.code,
+    errorMessage: w.message ?? undefined,
+    ticketId: w.approvalTicketId ?? undefined,
+    // auditId 是语言本地扩展，wire 里没有
+    code: w.code,
+    message: w.message,
+    approvalTicketId: w.approvalTicketId,
+  });
 }
 
 /** 审批单 - 对齐 core ApprovalTicket.java */

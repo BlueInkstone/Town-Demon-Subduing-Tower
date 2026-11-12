@@ -12,6 +12,8 @@ export {
   createContext,
   ok,
   fail,
+  toWire,
+  fromWire,
   newTicketId,
 } from "./contract";
 
@@ -20,6 +22,7 @@ export type {
   SkillDescriptor,
   ExecutionContext,
   SkillResult,
+  SkillResultWire,
   ApprovalTicket,
   ErrorCode,
 } from "./contract";

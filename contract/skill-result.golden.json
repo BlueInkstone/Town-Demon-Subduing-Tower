@@ -1,0 +1,68 @@
+{
+  "$comment": "方向 D 第③步：SkillResult wire 结构统一的 golden 数据（2026-11-12）。wire 字段集必须与 towndemontower-wire.schema.json 的 $defs/SkillResult.required 完全一致，且 additionalProperties=false —— 本地扩展字段不得出现。",
+  "version": "1.0.0",
+  "status": "ratified",
+  "schemaRef": "towndemontower-wire.schema.json#/$defs/SkillResult",
+  "wireFields": ["success", "code", "message", "output", "approvalTicketId"],
+  "languageLocalOnly": [
+    "error_code", "error_message", "audit_id", "ticket_id",
+    "errorCode", "errorMessage", "auditId", "ticketId"
+  ],
+  "$commentCases": "每个 case 的 wire 是唯一期望输出；三语言各自从本地结果对象经 toWire() 产出并逐字段比对。code 一律为规范码（contract/error-codes.json），成功固定 OK。",
+  "cases": [
+    {
+      "id": "ok",
+      "wire": {
+        "success": true,
+        "code": "OK",
+        "message": null,
+        "output": "done",
+        "approvalTicketId": null
+      }
+    },
+    {
+      "id": "ok-object-output",
+      "wire": {
+        "success": true,
+        "code": "OK",
+        "message": null,
+        "output": { "items": [1, 2], "label": "batch" },
+        "approvalTicketId": null
+      }
+    },
+    {
+      "id": "denied-permission",
+      "wire": {
+        "success": false,
+        "code": "PERMISSION_DENIED",
+        "message": "No permission",
+        "output": null,
+        "approvalTicketId": null
+      }
+    },
+    {
+      "id": "pending-approval-alias",
+      "$comment": "输入用 SDK 别名 APPROVAL_REQUIRED，wire 输出必须归一为规范码 PENDING_APPROVAL",
+      "inputAlias": "APPROVAL_REQUIRED",
+      "wire": {
+        "success": false,
+        "code": "PENDING_APPROVAL",
+        "message": "awaiting human approval",
+        "output": null,
+        "approvalTicketId": "TKT-1"
+      }
+    },
+    {
+      "id": "r3-denied-alias",
+      "$comment": "输入用 SDK 别名 RISK_REJECTED，wire 输出必须归一为规范码 R3_DENIED",
+      "inputAlias": "RISK_REJECTED",
+      "wire": {
+        "success": false,
+        "code": "R3_DENIED",
+        "message": "irreversible action blocked",
+        "output": null,
+        "approvalTicketId": null
+      }
+    }
+  ]
+}

@@ -9,6 +9,8 @@ from enum import Enum
 from typing import Any, Optional
 from types import MappingProxyType
 
+from .codes import SUCCESS_CODE, canonical_code
+
 
 class RiskLevel(Enum):
     """风险等级 - 对齐 core RiskLevel.java"""
@@ -194,18 +196,36 @@ class ApprovalTicket:
 @dataclass(frozen=True)
 class SkillResult:
     """
-    技能执行结果 - 对齐 core SkillResult.java
-    
-    包含执行成功/失败状态、输出、错误码等。
+    技能执行结果 - 对齐已定稿的 contract/ 中 $defs/SkillResult。
+
+    wire 字段集固定为 success / code / message / output / approvalTicketId（camelCase），
+    见 :meth:`to_wire`。下面三组 snake_case 字段是 SDK 本地扩展，保留以兼容既有调用方：
+      - error_code / error_message：code / message 的旧名
+      - audit_id：语言本地扩展，schema 明确禁止进入 wire
     """
     success: bool
     output: Any = None
+    # 兼容字段（既有调用方与 118 项测试仍在用，不改变语义）
     error_code: Optional[str] = None
     error_message: Optional[str] = None
     audit_id: Optional[str] = None
-    
+    # 规范字段（方向 D 定稿；内部用 snake_case，wire 输出 camelCase）
+    code: Optional[str] = None
+    message: Optional[str] = None
+    approval_ticket_id: Optional[str] = None
+
+    def __post_init__(self):
+        # 规范字段缺省时从兼容字段推导：成功固定 OK，失败把别名归一为规范码
+        if self.code is None:
+            object.__setattr__(
+                self, "code",
+                SUCCESS_CODE if self.success else canonical_code(self.error_code),
+            )
+        if self.message is None:
+            object.__setattr__(self, "message", self.error_message)
+
     def to_dict(self) -> dict[str, Any]:
-        """转换为 JSON 兼容字典"""
+        """SDK 本地字典（snake_case，保持既有行为不变）。跨语言传输请用 to_wire()。"""
         return {
             "success": self.success,
             "output": self.output,
@@ -213,10 +233,10 @@ class SkillResult:
             "error_message": self.error_message,
             "audit_id": self.audit_id,
         }
-    
+
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "SkillResult":
-        """从字典创建技能结果"""
+        """从本地字典创建（保持既有行为不变）。"""
         return cls(
             success=data.get("success", False),
             output=data.get("output"),
@@ -224,18 +244,54 @@ class SkillResult:
             error_message=data.get("error_message"),
             audit_id=data.get("audit_id"),
         )
-    
+
+    def to_wire(self) -> dict[str, Any]:
+        """输出统一 wire：恰好 5 个 camelCase 字段，缺失项显式为 None，不含本地扩展。"""
+        return {
+            "success": self.success,
+            "code": canonical_code(self.code) if self.code is not None else None,
+            "message": self.message,
+            "output": self.output,
+            "approvalTicketId": self.approval_ticket_id,
+        }
+
+    @classmethod
+    def from_wire(cls, data: dict[str, Any]) -> "SkillResult":
+        """从统一 wire 还原；只认 5 个规范字段，同时补齐本地兼容字段。"""
+        success = bool(data.get("success", False))
+        code = data.get("code")
+        message = data.get("message")
+        return cls(
+            success=success,
+            output=data.get("output"),
+            error_code=code if not success else None,
+            error_message=message,
+            # auditId 是语言本地扩展，wire 里没有，保持 None
+            code=code,
+            message=message,
+            approval_ticket_id=data.get("approvalTicketId"),
+        )
+
     @classmethod
     def ok(cls, output: Any, audit_id: Optional[str] = None) -> "SkillResult":
-        """创建成功结果"""
-        return cls(success=True, output=output, audit_id=audit_id)
-    
+        """创建成功结果；规范码固定 OK。"""
+        return cls(success=True, output=output, audit_id=audit_id, code=SUCCESS_CODE)
+
     @classmethod
-    def fail(cls, error_code: str, error_message: str, audit_id: Optional[str] = None) -> "SkillResult":
-        """创建失败结果"""
+    def fail(
+        cls,
+        error_code: str,
+        error_message: str,
+        audit_id: Optional[str] = None,
+        approval_ticket_id: Optional[str] = None,
+    ) -> "SkillResult":
+        """创建失败结果；error_code 保留输入别名，code/wire 输出用规范码。"""
         return cls(
             success=False,
             error_code=error_code,
             error_message=error_message,
             audit_id=audit_id,
+            code=canonical_code(error_code),
+            message=error_message,
+            approval_ticket_id=approval_ticket_id,
         )

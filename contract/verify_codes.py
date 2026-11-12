@@ -129,6 +129,49 @@ def main():
           and counts_as_denied(canonical_code("APPROVAL_REQUIRED")) is False
           and counts_as_denied(canonical_code("RISK_REJECTED")) is True)
 
+    # 6. SkillResult wire 结构统一（方向 D 第③步）
+    golden = load_json(CONTRACT / "skill-result.golden.json")
+    required = defs["SkillResult"]["required"]
+    wire_fields = golden["wireFields"]
+    check("SkillResult golden 已定稿", golden.get("status") == "ratified")
+    check("wire 字段集与 schema required 一致",
+          set(wire_fields) == set(required), f"{wire_fields} vs {required}")
+    check("schema 禁止额外字段（additionalProperties=false）",
+          defs["SkillResult"].get("additionalProperties") is False)
+    check("wire 字段恰为 5 个", len(wire_fields) == 5)
+
+    cases = golden["cases"]
+    shape_bad = [c["id"] for c in cases if set(c["wire"]) != set(wire_fields)]
+    check(f"golden {len(cases)} 个 case 字段集一致", not shape_bad, str(shape_bad))
+    code_bad = [
+        c["id"] for c in cases
+        if c["wire"]["code"] not in canonical
+        and c["wire"]["code"] not in codes["unmappedRequiresReview"]
+    ]
+    check("golden 所有 code 是规范码或已登记待评审码", not code_bad, str(code_bad))
+    ok_bad = [
+        c["id"] for c in cases
+        if c["wire"]["success"] and c["wire"]["code"] != success
+    ]
+    check("成功结果 code 固定 OK", not ok_bad, str(ok_bad))
+    alias_bad = [
+        c["id"] for c in cases
+        if c.get("inputAlias") and c["wire"]["code"] not in canonical
+    ]
+    check("别名 case 的 wire 输出已归一为规范码", not alias_bad, str(alias_bad))
+
+    wire_bindings = {
+        "Java": ROOT / "towndemontower-core/src/main/java/com/towndemontower/core/contract/SkillResult.java",
+        "Python": ROOT / "towndemontower-sdk-python/src/towndemontower/contract.py",
+        "TypeScript": ROOT / "towndemontower-sdk-typescript/src/contract.ts",
+    }
+    entrypoints = {"Java": "toWire", "Python": "to_wire", "TypeScript": "toWire"}
+    for lang, path in wire_bindings.items():
+        text = path.read_text(encoding="utf-8") if path.is_file() else ""
+        missing = [f for f in wire_fields if not re.search(r"\b" + re.escape(f) + r"\b", text)]
+        check(f"{lang} SkillResult 覆盖 5 个 wire 字段且有 {entrypoints[lang]}()",
+              not missing and entrypoints[lang] in text, f"缺少 {missing}")
+
     print(f"\nRESULT: {_passed}/{_passed + _failed} passed")
     return 0 if _failed == 0 else 1
 
