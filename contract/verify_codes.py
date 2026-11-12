@@ -172,6 +172,38 @@ def main():
         check(f"{lang} SkillResult 覆盖 5 个 wire 字段且有 {entrypoints[lang]}()",
               not missing and entrypoints[lang] in text, f"缺少 {missing}")
 
+    # 7. 统一审计链格式（路径三定稿；三语言写入侧尚未施工，只校验权威文件自洽）
+    chain = load_json(CONTRACT / "audit-chain.json")
+    check("审计链格式已定稿", chain.get("status") == "ratified")
+    check("chainVersion=2、seq 从 1、链头 GENESIS",
+          chain.get("chainVersion") == 2 and chain.get("seqStart") == 1
+          and chain.get("genesis") == "GENESIS")
+    check("摘要公式沿用 Java 既有算式",
+          "prevHash" in chain.get("hashInput", "") and "|" in chain.get("hashInput", ""))
+    check("时间不参与摘要", chain.get("timestamp", {}).get("inHash") is False)
+    check("无密钥显式标记降级",
+          chain.get("algorithm", {}).get("withoutKeyLabel") == "SHA256-DEGRADED")
+    check("密钥策略对齐 core SecretPolicy",
+          chain.get("keyPolicy", {}).get("minLength") == 32
+          and chain.get("keyPolicy", {}).get("minDistinctChars") == 12)
+    check("存量不做迁移/重算", chain.get("migration", {}).get("needed") is False)
+    check("v1 三种方言均有分派规则",
+          all(k in chain.get("legacyDispatch", {}) for k in
+              ("v1-java", "v1-python", "v1-typescript")))
+    check("wire 字段恰为 9 个", len(chain.get("wireFields", [])) == 9)
+    cg = chain.get("golden", [])
+    check(f"审计链 golden {len(cg)} 条", len(cg) == 5)
+    check("golden 摘要均为 64 位十六进制",
+          all(re.fullmatch(r"[0-9a-f]{64}", g["expectedHash"]) for g in cg))
+    check("golden 行均可解析且 chainVersion=2",
+          all(json.loads(g["expectedLine"]).get("chainVersion") == 2 for g in cg))
+    # 参考实现自检：由子进程执行，保证权威文件与可运行算式一致
+    import subprocess
+    proc = subprocess.run([sys.executable, str(CONTRACT / "audit_chain.py"), "--verify"],
+                          capture_output=True, text=True, encoding="utf-8")
+    check("统一链参考实现自检通过", proc.returncode == 0,
+          (proc.stdout or "")[-200:])
+
     print(f"\nRESULT: {_passed}/{_passed + _failed} passed")
     return 0 if _failed == 0 else 1
 

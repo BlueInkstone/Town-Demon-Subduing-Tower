@@ -1,0 +1,96 @@
+{
+  "$comment": "方向 D · 统一审计链格式（2026-11-12 定稿）。三语言共用的唯一权威；参考实现 contract/audit_chain.py，校验：python contract/audit_chain.py --verify。存量行按 chainVersion 分派只读校验，不允许就地重算。",
+  "version": "2.0",
+  "status": "ratified",
+  "ratifiedAt": "2026-11-12",
+  "chainVersion": 2,
+  "genesis": "GENESIS",
+  "seqStart": 1,
+  "keyEnv": "TOWNDEMONTOWER_AUDIT_KEY",
+  "keyPolicy": {
+    "$comment": "对齐 core/security/SecretPolicy.java；三语言必须用同一套判定，否则同一环境变量在 Java 视为未配置、在 SDK 却启用 HMAC，摘要必然对不上",
+    "minLength": 32,
+    "minDistinctChars": 12,
+    "placeholders": ["changeme", "change-me", "changeit", "test", "test-key", "testing", "dev", "development", "secret", "password", "passwd", "key", "gatekey", "towndemontower", "towndemontower-gate-key", "towndemontower-dev-gate-key-do-not-use-in-prod"],
+    "onReject": "视为未配置 → SHA256-DEGRADED，显式标记，不回退任何默认密钥",
+    "encoding": "UTF-8 字节直接作为 HMAC key"
+  },
+  "$commentPayload": "payload 统一为 UTF-8 字符串；结构化负载由写入方按规范化 JSON（键字典序、紧凑分隔符、ensure_ascii=false）序列化成字符串。Java 现有 tool|OK|task=... 描述串原样保留，不改动 M1 行为分析器。",
+  "hashInput": "seq + \"|\" + action + \"|\" + payload + \"|\" + prevHash",
+  "$commentHashInput": "沿用 Java 既有算式，不引入新拼接方式；字段边界由落盘 JSON 保证，竖线只作为摘要串内部分隔。",
+  "timestamp": {
+    "format": "ISO-8601 UTC 带 Z",
+    "inHash": false,
+    "comment": "只做审计可读性，不进摘要；避免时钟差异导致跨语言摘要不一致"
+  },
+  "algorithm": {
+    "withKey": "HMAC-SHA256",
+    "withoutKey": "SHA-256",
+    "withoutKeyLabel": "SHA256-DEGRADED",
+    "comment": "无密钥时必须在行内 algorithm 显式标记降级，不得静默等价于 SHA-256；密钥只从环境变量取，不合格视为未配置"
+  },
+  "wireFields": [
+    "chainVersion",
+    "seq",
+    "action",
+    "payload",
+    "timestamp",
+    "prevHash",
+    "hash",
+    "mac",
+    "algorithm"
+  ],
+  "$commentWire": "单行 JSON，键 camelCase、键按字典序、紧凑分隔符（,/:）、ensure_ascii=false、UTF-8；一行一条记录，段头仍用 #SEGMENT <uuid> prev=<lastTail>。additionalProperties 语义：只列上述 9 字段。",
+  "legacyDispatch": {
+    "v1-java": "含 tab 且可切 4 列的旧行：seq\\taction\\thash\\tpayload，链内 prevHash 由前一条推得，摘要 seq|action|payload|prevHash",
+    "v1-python": "JSON 行且含 prev_hash：seq 从 0、链头 64 个 0、摘要 seq:action:json(payload,sort_keys):timestamp:prev_hash、恒 SHA-256",
+    "v1-typescript": "JSON 行且含 prevHash 且无 chainVersion：seq 从 0、链头 64 个 0、摘要 seq:action:JSON.stringify(payload,keys.sort()):timestamp:prevHash、恒 SHA-256",
+    "policy": "只读校验，不重算、不改写、不迁移；出现 v1 行时报告里标注 legacySeen"
+  },
+  "migration": {
+    "needed": false,
+    "comment": "项目尚未被使用，无存量证据链；本次直接把三语言默认写入切到 chainVersion=2，不生成迁移脚本、不对已有文件做就地重算。v1 分派能力仅为将来留门。",
+    "ifLegacyAppears": "按 legacyDispatch 只读校验并标注，另起一段写 v2 新行（段头记录前一段尾哈希），旧行保持原样"
+  },
+  "goldenKey": {
+    "comment": "仅用于 golden 算例的固定值，不是生产密钥；生产密钥必须来自环境变量",
+    "bytes": "K7mP9qRs2tUv4wXy6zA8bC0dE1fG3hJ5k"
+  },
+  "golden": [
+    {
+      "id": "first-no-key",
+      "key": "NONE",
+      "hashInput": "1|SKILL_INVOKED|{\"agent\":\"AGT-0001\",\"code\":\"OK\",\"tool\":\"read\"}|GENESIS",
+      "expectedHash": "4cdf7086e8a14c7669438111705a0e2585bdc97d0eb3a8d32f38623a9f520bee",
+      "expectedLine": "{\"action\":\"SKILL_INVOKED\",\"algorithm\":\"SHA256-DEGRADED\",\"chainVersion\":2,\"hash\":\"4cdf7086e8a14c7669438111705a0e2585bdc97d0eb3a8d32f38623a9f520bee\",\"mac\":\"\",\"payload\":\"{\\\"agent\\\":\\\"AGT-0001\\\",\\\"code\\\":\\\"OK\\\",\\\"tool\\\":\\\"read\\\"}\",\"prevHash\":\"GENESIS\",\"seq\":1,\"timestamp\":\"2026-11-12T00:00:00Z\"}"
+    },
+    {
+      "id": "first-hmac",
+      "key": "HMAC",
+      "hashInput": "1|SKILL_INVOKED|{\"agent\":\"AGT-0001\",\"code\":\"OK\",\"tool\":\"read\"}|GENESIS",
+      "expectedHash": "f57f137f199c916ed13c4b0d666569147fe4b999efbb0dcf749c9f1c3db1f4c4",
+      "expectedLine": "{\"action\":\"SKILL_INVOKED\",\"algorithm\":\"HMAC-SHA256\",\"chainVersion\":2,\"hash\":\"f57f137f199c916ed13c4b0d666569147fe4b999efbb0dcf749c9f1c3db1f4c4\",\"mac\":\"\",\"payload\":\"{\\\"agent\\\":\\\"AGT-0001\\\",\\\"code\\\":\\\"OK\\\",\\\"tool\\\":\\\"read\\\"}\",\"prevHash\":\"GENESIS\",\"seq\":1,\"timestamp\":\"2026-11-12T00:00:00Z\"}"
+    },
+    {
+      "id": "unicode-payload",
+      "key": "NONE",
+      "hashInput": "2|INPUT_REJECTED|{\"reason\":\"中文路径\",\"tool\":\"writeFile\"}|PLACEHOLDER",
+      "expectedHash": "fff0363c67ef9e6a657de963459f7a6558daf4b86db8c2f05446fcbca64a3587",
+      "expectedLine": "{\"action\":\"INPUT_REJECTED\",\"algorithm\":\"SHA256-DEGRADED\",\"chainVersion\":2,\"hash\":\"fff0363c67ef9e6a657de963459f7a6558daf4b86db8c2f05446fcbca64a3587\",\"mac\":\"\",\"payload\":\"{\\\"reason\\\":\\\"中文路径\\\",\\\"tool\\\":\\\"writeFile\\\"}\",\"prevHash\":\"PLACEHOLDER\",\"seq\":2,\"timestamp\":\"2026-11-12T00:00:01Z\"}"
+    },
+    {
+      "id": "string-payload",
+      "key": "NONE",
+      "hashInput": "3|SKILL_INVOKED|tool3|OK|task=t1|mode=DEV_EXECUTION|agent=AGT-0001|PLACEHOLDER",
+      "expectedHash": "bbe6ff5c0a2043193194106ad80449ac1b42be21482856565c51402fbacc87f3",
+      "expectedLine": "{\"action\":\"SKILL_INVOKED\",\"algorithm\":\"SHA256-DEGRADED\",\"chainVersion\":2,\"hash\":\"bbe6ff5c0a2043193194106ad80449ac1b42be21482856565c51402fbacc87f3\",\"mac\":\"\",\"payload\":\"tool3|OK|task=t1|mode=DEV_EXECUTION|agent=AGT-0001\",\"prevHash\":\"PLACEHOLDER\",\"seq\":3,\"timestamp\":\"2026-11-12T00:00:02Z\"}"
+    },
+    {
+      "id": "chained-second",
+      "key": "NONE",
+      "hashInput": "2|SKILL_INVOKED|{\"code\":\"PENDING_APPROVAL\",\"tool\":\"deploy\"}|4cdf7086e8a14c7669438111705a0e2585bdc97d0eb3a8d32f38623a9f520bee",
+      "expectedHash": "16032f958060541062ed189e8841265542e21989f8b35f8d1540c2081d8a9133",
+      "expectedLine": "{\"action\":\"SKILL_INVOKED\",\"algorithm\":\"SHA256-DEGRADED\",\"chainVersion\":2,\"hash\":\"16032f958060541062ed189e8841265542e21989f8b35f8d1540c2081d8a9133\",\"mac\":\"\",\"payload\":\"{\\\"code\\\":\\\"PENDING_APPROVAL\\\",\\\"tool\\\":\\\"deploy\\\"}\",\"prevHash\":\"4cdf7086e8a14c7669438111705a0e2585bdc97d0eb3a8d32f38623a9f520bee\",\"seq\":2,\"timestamp\":\"2026-11-12T00:00:03Z\"}"
+    }
+  ]
+}

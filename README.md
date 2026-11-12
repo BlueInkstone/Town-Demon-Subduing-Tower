@@ -75,8 +75,9 @@ java -cp out com.towndemontower.core.analysis.AuditAnalyzerMain \
      --file <audit.log> --out report.json --min-samples 5     # 不写审计，只出脱敏报告
 #     加 --normalize-aliases：按 contract/error-codes.json 归一 SDK 别名后统计
 
-# 方向 D 跨语言口径 / SkillResult wire 一致性校验（零依赖，可直接当 CI 门禁）
-python contract/verify_codes.py                              # 32/32
+# 方向 D 跨语言口径 / wire 结构 / 审计链格式一致性（零依赖，可直接当 CI 门禁）
+python contract/verify_codes.py                              # 45/45
+python contract/audit_chain.py --verify                      # 24/24（统一链 golden 与 v1 分派）
 java -cp out com.towndemontower.core.SkillResultWireTest     # 28/28（wire 结构 golden）
 ```
 
@@ -177,7 +178,7 @@ towndemontower-sdk-typescript/               （v2.0 TypeScript SDK，91/91）
 | A · 治理引擎可靠性 | 内部故障强拦截与专属错误码、启动自检覆盖核对、健康检查与探活告警、Fail-closed 对外承诺 | 🗓 已排期 |
 | B · 上下文与数据安全 | 意图级快照与状态回溯、提示词哨兵、一键红队演练 | 🗓 已排期 |
 | C · 审计驱动的动态防御 | **只读行为报告已实现**（[docs/36-方向C-需求说明.md](docs/36-方向C-需求说明.md) §12）：默认关闭、离线 CLI、只认 Java 规范码、脱敏、链校验前置；**降权建议单已批准并排期**，需架构设计先行；**后台自动收紧明确不做**。冲突与方案见 `docs/08` §C | 🗓 建议单待架构设计 |
-| D · 跨语言契约一致性 | **wire schema 与错误码口径已定稿**（`contract/`）、三语言统计口径打通、**`SkillResult` wire 结构统一**；其余结构与审计链实现仍未统一。详见 [docs/35-跨语言契约对账.md](docs/35-跨语言契约对账.md) | 🗓 已排期，审计链统一须单独评审 |
+| D · 跨语言契约一致性 | **wire schema 与错误码口径已定稿**（`contract/`）、三语言统计口径打通、**`SkillResult` wire 结构统一**、**审计链格式定稿 + 迁移方案可评审**（[docs/37-审计链统一迁移方案.md](docs/37-审计链统一迁移方案.md)）；格式定稿 ≠ 实现符合，三语言审计写入侧仍待施工。详见 [docs/35-跨语言契约对账.md](docs/35-跨语言契约对账.md) | 🗓 已排期，写入侧待单独评审后施工 |
 
 ## 构建期自检（v1.11）
 
