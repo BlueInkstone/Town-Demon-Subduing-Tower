@@ -41,34 +41,45 @@ jobs:
             mvn -B -q -f towndemontower-spring-starter/pom.xml -DskipTests install
           fi
 
-      - name: Compile and test
-        run: mvn -B -f ${{ matrix.module }}/pom.xml test
+      # 必须走到 package：断言要看 jar，mvn test 不产 jar，会让卡口自己挂掉。
+      # 带 clean：增量编译留在 target/ 里的高版本 class 不该被带进这次构建。
+      - name: Compile, test and package
+        run: mvn -B -f ${{ matrix.module }}/pom.xml clean package
 
-      # 卡口本体：jar 内每一个 class 的主版本号都必须等于该模块的目标档位。
-      # 只看 pom 里的 release 不够——增量编译留下的旧 class 会一直待在 target/ 里。
+      # 卡口本体：本模块产出的每一个 class 都必须是目标档位。
+      # 光扫 jar 不够：测试类不进 jar，而 IDE 曾把 V19 测试类编成 class 65 留在 target/test-classes，
+      # 在 JRE 8 上直接 UnsupportedClassVersionError。这里把编译目录一并扫掉。
       - name: Assert bytecode level
         run: |
           python3 - "${{ matrix.module }}" "${{ matrix.major }}" <<'PY'
           import glob, sys, zipfile
 
           module, expected = sys.argv[1], int(sys.argv[2])
-          jars = glob.glob(f'{module}/target/*.jar')
-          if not jars:
-              sys.exit(f'no jar produced by {module}')
+          bad, checked = [], 0
 
-          bad = []
-          for jar in jars:
+          def check(label, head):
+              global checked
+              checked += 1
+              major = head[6] * 256 + head[7]
+              if major != expected:
+                  bad.append(f'{label} -> {major}')
+
+          for jar in glob.glob(f'{module}/target/*.jar'):
               with zipfile.ZipFile(jar) as z:
                   for name in z.namelist():
                       if name.endswith('.class'):
-                          head = z.read(name)[:8]
-                          major = head[6] * 256 + head[7]
-                          if major != expected:
-                              bad.append(f'{jar}:{name} -> {major}')
+                          check(f'{jar}:{name}', z.read(name)[:8])
+
+          for root in (f'{module}/target/classes', f'{module}/target/test-classes'):
+              for path in glob.glob(f'{root}/**/*.class', recursive=True):
+                  with open(path, 'rb') as f:
+                      check(path, f.read(8))
 
           if bad:
               print('\n'.join(bad[:10]))
               sys.exit(f'bytecode mismatch: expected class {expected}')
+          if not checked:
+              sys.exit(f'no class produced by {module}')
 
-          print(f'OK {module} -> class {expected}')
+          print(f'OK {module} -> class {expected} ({checked} classes)')
           PY
