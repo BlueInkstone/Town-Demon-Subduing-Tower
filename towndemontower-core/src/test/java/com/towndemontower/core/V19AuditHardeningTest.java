@@ -66,10 +66,11 @@ public class V19AuditHardeningTest {
         check("链-自身可验", s.verifyChain());
         check("链-记录数", s.all().size() == 2);
 
-        String input = s.all().get(0).seq + "|A|1|GENESIS";
-        check("链-摘要与SHA256不同", !s.all().get(0).hash.equals(AuditCrypto.sha256(input)));
-        check("链-摘要与HMAC一致",
-                s.all().get(0).hash.equals(AuditCrypto.chain(KEY, input)));
+        // V2.2 起时间戳参与摘要，口径统一走 AuditRecord.hashInput
+        AuditRecord first = s.all().get(0);
+        String input = AuditRecord.hashInput(first.seq, "A", "1", "GENESIS", first.ts);
+        check("链-摘要与SHA256不同", !first.hash.equals(AuditCrypto.sha256(input)));
+        check("链-摘要与HMAC一致", first.hash.equals(AuditCrypto.chain(KEY, input)));
         check("链-GENESIS前驱", "GENESIS".equals(s.all().get(0).prevHash));
         check("链-后继前驱正确", s.all().get(1).prevHash.equals(s.all().get(0).hash));
     }

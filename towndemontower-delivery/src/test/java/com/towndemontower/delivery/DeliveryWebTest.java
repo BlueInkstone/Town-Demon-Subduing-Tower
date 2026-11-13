@@ -262,6 +262,15 @@ public class DeliveryWebTest {
         check("模式白名单-业务主链仍含业务工具",
                 policy.allowedTools(com.towndemontower.core.mode.AgentMode.DEV_EXECUTION)
                         .contains("restartService"));
+
+        // 治理管理页签的「指标体检」子页属于页面契约的一部分：
+        // 端点一改、页面没跟着改，用户看到的就是空白页，这里先兜住
+        String page = rest.getForObject(base + "/delivery/index.html", String.class);
+        check("页面-治理页含指标体检子页",
+                page != null && page.contains("b5-integrity") && page.contains("/metrics"));
+        check("页面-指标子页读的是观测端点",
+                page != null && page.contains("/towndemontower/metrics")
+                        && page.contains("/towndemontower/integrity"));
     }
 
     /* ---------------- 辅助 ---------------- */

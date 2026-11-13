@@ -4,7 +4,9 @@
 （[docs/33-治理管理接口.md](../../docs/33-治理管理接口.md)）的标准调用姿势：
 **请求配置 → 参数传递 → 中间件拦截 → 响应统一处理 → 异常收敛**。
 
-全部代码只依赖 JDK 21 与 Jackson（项目已有的 Maven 依赖），可以直接编译运行。
+全部代码只依赖 JDK 17 与 Jackson（项目已有的 Maven 依赖），可以直接编译运行。
+编译请带 `--release 17`：示例用了文本块（Java 15+），漏掉 release 会按本机 JDK 出更高版本的字节码，
+在 JDK 17 上跑不起来。
 
 ---
 
@@ -34,12 +36,12 @@ examples/api-client-demo/
 ## 2. 运行
 
 ```powershell
-# 0) 指定 JDK 21（本仓库用的是 21.0.12；若 java -version 已是 21 可跳过）
-$jdk = "C:\Program Files\Java\jdk-21.0.12\bin"
+# 0) 指定 JDK 17（示例目标 17；若 java -version 已是 17 可跳过）
+$jdk = "C:\Program Files\Java\jdk-17\bin"
 
 # 1) 编译（在仓库根目录执行；-sourcepath 会自动带上同包其它类）
 $cp = (Get-Content examples/api-client-demo/cp.txt -Raw).Trim()
-& "$jdk\javac.exe" -encoding UTF-8 -parameters `
+& "$jdk\javac.exe" --release 17 -encoding UTF-8 -parameters `
   -sourcepath examples/api-client-demo/src/main/java `
   -cp $cp -d examples/api-client-demo/target/classes `
   examples/api-client-demo/src/main/java/com/towndemontower/examples/apiclient/Demo.java

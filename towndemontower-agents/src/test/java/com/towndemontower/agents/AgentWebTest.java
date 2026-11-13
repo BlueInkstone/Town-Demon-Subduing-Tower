@@ -25,7 +25,7 @@ import java.util.Map;
  *
  * <p>验证：注册 / 改档 / 状态流转 / 注销的 REST 全链路、筛选与汇总、
  * 字段校验与 404、权限账实一致性、审计哈希链、共享注册表与白名单隔离，
- * 以及<b>本模块不提供任何页面</b>。</p>
+ * 以及<b>花名册页面可访问</b>（只读页面，写操作仍走 REST + 治理链）。</p>
  *
  * <p>绕开 surefire（JDK 21 + surefire 3.2.5 有 LinkageError），以 main 直接验证。</p>
  */
@@ -256,11 +256,16 @@ public class AgentWebTest {
                 policy.allowedTools(com.towndemontower.core.mode.AgentMode.DEV_EXECUTION)
                         .contains("restartService"));
 
-        /* ---------- ⑭ 本模块只提供 REST，不提供页面 ---------- */
-        eq("页面-未提供静态页", rest.getForEntity(base + "/agents/index.html", String.class)
-                .getStatusCode(), HttpStatus.NOT_FOUND);
-        eq("页面-根路径无页面", rest.getForEntity(base + "/", String.class)
-                .getStatusCode(), HttpStatus.NOT_FOUND);
+        /* ---------- ⑭ 花名册页面（V2.1 起提供；此前这三条断言的是 404） ---------- */
+        String rosterHtml = rest.getForObject(base + "/agents/index.html", String.class);
+        // 断言用 ASCII 标记：静态资源响应的 Content-Type 不带 charset，客户端按 ISO-8859-1 解码，
+        // 中文会变乱码——这不是页面问题，但会让中文断言假失败。
+        check("页面-花名册可访问且内容正确",
+                rosterHtml != null && rosterHtml.contains("/api/agents") && rosterHtml.length() > 4000);
+        eq("页面-根路径进入花名册", rest.getForEntity(base + "/", String.class)
+                .getStatusCode(), HttpStatus.OK);
+        eq("页面-短地址进入花名册", rest.getForEntity(base + "/agents/", String.class)
+                .getStatusCode(), HttpStatus.OK);
     }
 
     /* ---------------- 辅助 ---------------- */

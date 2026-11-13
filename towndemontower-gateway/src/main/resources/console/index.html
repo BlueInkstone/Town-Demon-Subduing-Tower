@@ -1,0 +1,486 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>墨铠网关 · 裁决控制台</title>
+<style>
+  :root{
+    --bg:#f5f7fa; --panel:#ffffff; --panel-2:#fafbfc;
+    --text:#1f2733; --text-dim:#5b6675; --text-mute:#8a94a3;
+    --line:#e3e8ef; --line-strong:#cfd6e0;
+    --brand:#3b6fd4; --brand-soft:#eaf0fc;
+    --ok:#1f9254; --ok-soft:#e6f4ec;
+    --warn:#c77b12; --warn-soft:#fdf1de;
+    --info:#2b6cb0; --info-soft:#e5effa;
+    --idle:#6b7684; --idle-soft:#eef0f3;
+    --danger:#c0392b; --danger-soft:#fbeae8;
+    --radius:10px;
+    --shadow:0 1px 2px rgba(16,24,40,.04),0 4px 14px rgba(16,24,40,.06);
+    --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  }
+  @media (prefers-color-scheme: dark){
+    :root{
+      --bg:#12161c; --panel:#1a1f27; --panel-2:#20262f;
+      --text:#e6eaf0; --text-dim:#a4aebc; --text-mute:#7c8796;
+      --line:#2a323d; --line-strong:#39424f;
+      --brand:#6b9bf0; --brand-soft:#1e2a3f;
+      --ok:#4ec27f; --ok-soft:#16301f;
+      --warn:#e0a63f; --warn-soft:#332612;
+      --info:#63a4e8; --info-soft:#16283c;
+      --idle:#96a1b0; --idle-soft:#242b34;
+      --danger:#e8776a; --danger-soft:#331b18;
+      --shadow:0 1px 2px rgba(0,0,0,.3),0 6px 18px rgba(0,0,0,.28);
+    }
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0; padding:24px; background:var(--bg); color:var(--text);
+    font:14px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;
+  }
+  .wrap{max-width:1320px;margin:0 auto;}
+  header{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:18px;padding-bottom:16px;border-bottom:1px solid var(--line);}
+  h1{margin:0;font-size:20px;font-weight:650;letter-spacing:.2px;}
+  .sub{color:var(--text-mute);font-size:12.5px;margin-top:3px;max-width:720px;}
+  .header-right{display:flex;align-items:center;gap:10px;}
+  .health{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;padding:5px 11px;border-radius:99px;border:1px solid var(--line-strong);background:var(--panel-2);color:var(--text-dim);}
+  .health::before{content:"";width:7px;height:7px;border-radius:99px;background:var(--idle);}
+  .health.up{color:var(--ok);border-color:var(--ok);background:var(--ok-soft);}
+  .health.up::before{background:var(--ok);}
+  .health.down{color:var(--danger);border-color:var(--danger);background:var(--danger-soft);}
+  .health.down::before{background:var(--danger);}
+
+  .grid{display:grid;grid-template-columns:minmax(420px,1fr) minmax(380px,1fr);gap:16px;align-items:start;}
+  @media (max-width:1000px){ .grid{grid-template-columns:1fr;} body{padding:14px;} }
+
+  .panel{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow);margin-bottom:16px;overflow:hidden;}
+  .panel-head{display:flex;align-items:center;gap:10px;padding:13px 16px;border-bottom:1px solid var(--line);background:var(--panel-2);}
+  .panel-head h2{margin:0;font-size:14px;font-weight:620;}
+  .panel-head .spacer{flex:1;}
+  .panel-body{padding:16px;}
+
+  .field{margin-bottom:12px;}
+  .field:last-child{margin-bottom:0;}
+  .field > label{display:block;color:var(--text-dim);font-size:12.5px;margin-bottom:5px;}
+  .field .hint{color:var(--text-mute);font-size:11.5px;margin-top:4px;}
+  input,select,textarea,button{
+    font:inherit;color:var(--text);background:var(--panel);
+    border:1px solid var(--line-strong);border-radius:8px;padding:7px 11px;width:100%;
+  }
+  textarea{font-family:var(--mono);font-size:12.5px;line-height:1.5;resize:vertical;min-height:84px;}
+  input:focus,select:focus,textarea:focus{outline:none;border-color:var(--brand);box-shadow:0 0 0 3px var(--brand-soft);}
+  button{cursor:pointer;transition:.15s;width:auto;}
+  button:hover{border-color:var(--brand);color:var(--brand);}
+  button.primary{background:var(--brand);border-color:var(--brand);color:#fff;font-weight:560;}
+  button.primary:hover{filter:brightness(1.06);color:#fff;}
+  button:disabled{opacity:.55;cursor:not-allowed;}
+  .row{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+  .row-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;}
+
+  .presets{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:14px;}
+  .preset{font-size:12px;padding:5px 10px;border-radius:99px;border:1px solid var(--line-strong);background:var(--panel-2);color:var(--text-dim);cursor:pointer;transition:.15s;}
+  .preset:hover{border-color:var(--brand);color:var(--brand);background:var(--brand-soft);}
+
+  .verdict{border-radius:var(--radius);padding:14px 16px;margin-bottom:14px;border:1px solid var(--line);}
+  .verdict.ok{background:var(--ok-soft);border-color:var(--ok);}
+  .verdict.pending{background:var(--warn-soft);border-color:var(--warn);}
+  .verdict.denied{background:var(--danger-soft);border-color:var(--danger);}
+  .verdict.neutral{background:var(--panel-2);}
+  .verdict .code{font-family:var(--mono);font-size:16px;font-weight:640;letter-spacing:.2px;}
+  .verdict .msg{font-size:13px;color:var(--text-dim);margin-top:4px;}
+  .verdict .explain{font-size:12.5px;color:var(--text-mute);margin-top:8px;padding-top:8px;border-top:1px dashed var(--line);}
+  .ticket{font-family:var(--mono);font-size:12.5px;background:var(--panel);border:1px solid var(--line-strong);border-radius:6px;padding:2px 6px;display:inline-block;margin-top:6px;}
+
+  pre{margin:0;padding:14px 16px;background:var(--panel-2);border:1px solid var(--line);border-radius:var(--radius);font-family:var(--mono);font-size:12.5px;line-height:1.55;overflow:auto;max-height:420px;white-space:pre-wrap;word-break:break-word;}
+  .empty{color:var(--text-mute);font-size:13px;padding:8px 0;}
+  .kv{display:grid;grid-template-columns:110px 1fr;gap:5px 12px;font-size:13px;}
+  .kv .k{color:var(--text-mute);}
+  code{font-family:var(--mono);font-size:12px;background:var(--panel-2);border:1px solid var(--line);border-radius:4px;padding:1px 5px;}
+
+  footer{color:var(--text-mute);font-size:12px;margin-top:20px;padding-top:14px;border-top:1px solid var(--line);}
+  .toast{position:fixed;right:24px;bottom:24px;z-index:60;display:flex;flex-direction:column;gap:8px;}
+  .toast div{background:var(--text);color:var(--bg);padding:10px 14px;border-radius:8px;font-size:13px;max-width:360px;box-shadow:var(--shadow);}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div>
+      <h1>墨铠网关 · 裁决控制台</h1>
+      <div class="sub">
+        这里只做一件事：把一条意图丢进 <code>POST /api/evaluate</code>，看它被分到哪一级、是放行、挂审批还是拒绝。
+        <b>网关只裁决不执行</b>——返回 OK 也不代表动作已经发生。
+      </div>
+    </div>
+    <div class="header-right">
+      <span class="health" id="health">探活中…</span>
+      <button onclick="probe()">刷新探活</button>
+    </div>
+  </header>
+
+  <div class="grid">
+    <!-- 左：请求 -->
+    <div>
+      <div class="panel">
+        <div class="panel-head"><h2>1. 令牌</h2><div class="spacer"></div>
+          <button onclick="saveToken()">保存到本标签页</button>
+        </div>
+        <div class="panel-body">
+          <div class="field">
+            <label for="token">X-Inkarmor-Token</label>
+            <input id="token" type="password" placeholder="服务端 INKARMOR_API_TOKEN 的值">
+            <div class="hint">只存在 sessionStorage，关掉标签页即失效；不会写进日志，也不回传到服务端以外的地方。</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-head"><h2>2. 意图</h2><div class="spacer"></div>
+          <span style="color:var(--text-mute);font-size:12px">点预设快速填充</span>
+        </div>
+        <div class="panel-body">
+          <div class="presets">
+            <button class="preset" onclick="preset('restart')">R1 重启服务</button>
+            <button class="preset" onclick="preset('deploy')">R2 部署（挂审批）</button>
+            <button class="preset" onclick="preset('delete')">R3 删表（默认拒）</button>
+            <button class="preset" onclick="preset('planmode')">计划模式下写文件</button>
+            <button class="preset" onclick="preset('badformat')">格式非法</button>
+          </div>
+
+          <div class="row">
+            <div class="field">
+              <label for="tool">tool（必填）</label>
+              <input id="tool" placeholder="restartService">
+            </div>
+            <div class="field">
+              <label for="confidence">confidence（必填，0~1）</label>
+              <input id="confidence" placeholder="0.9">
+            </div>
+          </div>
+
+          <div class="field">
+            <label for="args">args（JSON 对象，可空）</label>
+            <textarea id="args" placeholder='{"service":"order-api"}'></textarea>
+            <div class="hint">必须是 JSON 对象，不是数组或字符串。</div>
+          </div>
+
+          <div class="row">
+            <div class="field">
+              <label for="reason">reason</label>
+              <input id="reason" placeholder="线上 5xx 升高，需重启">
+            </div>
+            <div class="field">
+              <label for="expectedEffect">expectedEffect</label>
+              <input id="expectedEffect" placeholder="错误率回落">
+            </div>
+          </div>
+
+          <div class="row-3">
+            <div class="field">
+              <label for="agentId">context.agentId</label>
+              <input id="agentId" placeholder="沿用服务端默认">
+            </div>
+            <div class="field">
+              <label for="mode">context.mode</label>
+              <select id="mode">
+                <option value="">沿用服务端默认</option>
+                <option value="PLANNING">PLANNING</option>
+                <option value="DEV_EXECUTION">DEV_EXECUTION</option>
+                <option value="AUDIT_REVIEWING">AUDIT_REVIEWING</option>
+              </select>
+            </div>
+            <div class="field">
+              <label for="tainted">context.tainted</label>
+              <select id="tainted">
+                <option value="">不传</option>
+                <option value="true">true（内容已被污染）</option>
+                <option value="false">false</option>
+              </select>
+            </div>
+          </div>
+
+          <div style="display:flex;gap:8px;margin-top:14px">
+            <button class="primary" id="btn-send" onclick="submitIntent()">发送裁决</button>
+            <button onclick="clearForm()">清空</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 右：结果 -->
+    <div>
+      <div class="panel">
+        <div class="panel-head"><h2>3. 裁决结果</h2><div class="spacer"></div>
+          <span id="elapsed" style="color:var(--text-mute);font-size:12px"></span>
+        </div>
+        <div class="panel-body">
+          <div id="verdict-box">
+            <div class="empty">还没发过请求。选一个预设，点「发送裁决」。</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-head"><h2>原始响应</h2><div class="spacer"></div>
+          <span id="http-status" style="color:var(--text-mute);font-size:12px"></span>
+        </div>
+        <div class="panel-body" style="padding:0">
+          <pre id="raw">—</pre>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-head"><h2>裁决码怎么读</h2></div>
+        <div class="panel-body">
+          <div class="kv">
+            <div class="k">OK</div><div>放行。网关认为可以执行——但<b>它自己不会执行</b>。</div>
+            <div class="k">R3_DENIED</div><div>默认拒绝，不可逆高危动作，带 force 也不放行。</div>
+            <div class="k">PENDING_APPROVAL</div><div>挂人工审批，响应里带 approvalTicketId。</div>
+            <div class="k">MODE_TOOL_NOT_ALLOWED</div><div>当前模式下这个工具根本不在白名单里。</div>
+            <div class="k">INTENT_FORMAT_INVALID</div><div>意图本身不合法（缺 tool / confidence 非数字 / mode 非法）。</div>
+            <div class="k">UNAUTHORIZED</div><div>缺令牌或令牌错（HTTP 401）。</div>
+            <div class="k">GATEWAY_API_DISABLED</div><div>服务端没配 INKARMOR_API_TOKEN，全拒（HTTP 403）。</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <footer>
+    每次裁决都会写一条审计（服务端文件，默认 <code>./data/audit/gateway.log</code>）；探活不写审计。
+    响应里不含审计序号——审计是落盘证据，不是接口返回值。
+  </footer>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+(function(){
+  "use strict";
+
+  var PRESETS = {
+    restart: {
+      tool: "restartService", confidence: "0.92",
+      args: '{"service":"order-api"}',
+      reason: "线上 5xx 升高，先重启一次", expectedEffect: "错误率回落到 1% 以下",
+      mode: "DEV_EXECUTION", tainted: "false"
+    },
+    deploy: {
+      tool: "deployService", confidence: "0.88",
+      args: '{"service":"pay-api","version":"1.4.2"}',
+      reason: "灰度验证通过，准备上生产", expectedEffect: "新版本对 10% 流量生效",
+      mode: "DEV_EXECUTION", tainted: "false"
+    },
+    delete: {
+      tool: "deleteData", confidence: "0.95",
+      args: '{"table":"orders_2023"}',
+      reason: "磁盘告警，清理历史库", expectedEffect: "释放 40 GB",
+      mode: "DEV_EXECUTION", tainted: "false"
+    },
+    planmode: {
+      tool: "writeFile", confidence: "0.8",
+      args: '{"path":"src/main/java/Demo.java"}',
+      reason: "计划阶段先写个骨架", expectedEffect: "生成文件",
+      mode: "PLANNING", tainted: "false"
+    },
+    badformat: {
+      tool: "", confidence: "abc", args: "[]",
+      reason: "", expectedEffect: "", mode: "", tainted: ""
+    }
+  };
+
+  function $(id){ return document.getElementById(id); }
+
+  function toast(msg){
+    var box = $("toast");
+    var d = document.createElement("div");
+    d.textContent = msg;
+    box.appendChild(d);
+    setTimeout(function(){
+      d.style.transition = "opacity .3s"; d.style.opacity = "0";
+      setTimeout(function(){ if(d.parentNode) d.parentNode.removeChild(d); }, 320);
+    }, 2800);
+  }
+
+  function esc(s){
+    return String(s === null || s === undefined ? "" : s)
+      .replace(/[&<>"']/g, function(c){
+        return {"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c];
+      });
+  }
+
+  // ===== 探活 =====
+  window.probe = function(){
+    var h = $("health");
+    h.className = "health";
+    h.textContent = "探活中…";
+    fetch("/api/health").then(function(r){ return r.json(); }).then(function(j){
+      var d = (j && j.data) || {};
+      h.className = "health up";
+      h.textContent = "运行中 · 已运行 " + (d.uptimeSeconds === undefined ? "?" : Math.round(d.uptimeSeconds)) + "s";
+    }).catch(function(){
+      h.className = "health down";
+      h.textContent = "探活失败（服务没起？）";
+    });
+  };
+
+  // ===== 令牌 =====
+  window.saveToken = function(){
+    sessionStorage.setItem("inkarmor.token", $("token").value || "");
+    toast("令牌已保存到本标签页");
+  };
+
+  // ===== 预设 =====
+  window.preset = function(name){
+    var p = PRESETS[name];
+    if(!p) return;
+    $("tool").value = p.tool;
+    $("confidence").value = p.confidence;
+    $("args").value = p.args;
+    $("reason").value = p.reason;
+    $("expectedEffect").value = p.expectedEffect;
+    $("mode").value = p.mode || "";
+    $("tainted").value = p.tainted || "";
+  };
+
+  window.clearForm = function(){
+    ["tool","confidence","args","reason","expectedEffect","agentId"].forEach(function(id){ $(id).value = ""; });
+    $("mode").value = ""; $("tainted").value = "";
+    $("verdict-box").innerHTML = '<div class="empty">还没发过请求。选一个预设，点「发送裁决」。</div>';
+    $("raw").textContent = "—";
+    $("http-status").textContent = "";
+    $("elapsed").textContent = "";
+  };
+
+  // ===== 组请求体 =====
+  function buildBody(){
+    var body = { tool: $("tool").value.trim() };
+
+    var conf = $("confidence").value.trim();
+    body.confidence = conf === "" ? null : (isNaN(Number(conf)) ? conf : Number(conf));
+
+    var argsTxt = $("args").value.trim();
+    if(argsTxt){
+      body.args = JSON.parse(argsTxt);   // 解析失败由调用方捕获并提示
+    }
+
+    if($("reason").value.trim()) body.reason = $("reason").value.trim();
+    if($("expectedEffect").value.trim()) body.expectedEffect = $("expectedEffect").value.trim();
+
+    var ctx = {};
+    if($("agentId").value.trim()) ctx.agentId = $("agentId").value.trim();
+    if($("mode").value) ctx.mode = $("mode").value;
+    if($("tainted").value) ctx.tainted = ($("tainted").value === "true");
+    if(Object.keys(ctx).length) body.context = ctx;
+
+    return body;
+  }
+
+  // ===== 提交 =====
+  window.submitIntent = function(){
+    var body;
+    try {
+      body = buildBody();
+    } catch(e){
+      toast("args 不是合法 JSON：" + e.message);
+      return;
+    }
+
+    var btn = $("btn-send");
+    btn.disabled = true;
+    btn.textContent = "发送中…";
+    var started = Date.now();
+
+    fetch("/api/evaluate", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Inkarmor-Token": sessionStorage.getItem("inkarmor.token") || ""
+      },
+      body: JSON.stringify(body)
+    }).then(function(res){
+      return res.text().then(function(txt){
+        var json = null;
+        try { json = txt ? JSON.parse(txt) : null; } catch(e){ json = null; }
+        render(res.status, json, txt, Date.now() - started);
+      });
+    }).catch(function(e){
+      $("verdict-box").innerHTML = '<div class="verdict denied"><div class="code">网络错误</div>'
+        + '<div class="msg">' + esc(e.message) + '</div></div>';
+      toast("请求没发出去：" + e.message);
+    }).then(function(){
+      btn.disabled = false;
+      btn.textContent = "发送裁决";
+    });
+  };
+
+  var EXPLAIN = {
+    OK: "放行。网关只出裁决，动作由调用方自己执行。",
+    R3_DENIED: "高危不可逆动作，默认拒绝；带 force 也不放行。",
+    PENDING_APPROVAL: "需要人工审批，凭 approvalTicketId 去审批中心处理。",
+    MODE_TOOL_NOT_ALLOWED: "当前模式下不在工具白名单里，先切模式或换工具。",
+    INTENT_FORMAT_INVALID: "意图不合法：缺 tool、confidence 非数字、或 context.mode 非法。",
+    UNAUTHORIZED: "令牌缺失或与 INKARMOR_API_TOKEN 不一致。",
+    GATEWAY_API_DISABLED: "服务端没有配置 INKARMOR_API_TOKEN，所有请求都被拒。",
+    BAD_REQUEST: "请求体不是合法 JSON。",
+    METHOD_NOT_ALLOWED: "只接受 POST。",
+    PAYLOAD_TOO_LARGE: "请求体超过 INKARMOR_GATEWAY_MAX_BODY_BYTES。",
+    INPUT_REJECTED: "入参超长或含控制字符。",
+    TOOL_UNKNOWN: "工具没有注册，网关不认识它。",
+    TAINT_BLOCKED: "内容已被标记为污染，禁止写操作。",
+    PERMISSION_DENIED: "该 Agent 没有这个工具的权限。"
+  };
+
+  function render(status, json, rawText, ms){
+    $("elapsed").textContent = ms + " ms";
+    $("http-status").textContent = "HTTP " + status;
+    $("raw").textContent = json ? JSON.stringify(json, null, 2) : (rawText || "—");
+
+    var box = $("verdict-box");
+
+    // 顶层失败：有 error 且没有 data
+    if(json && json.error && !json.data){
+      box.innerHTML = '<div class="verdict denied">'
+        + '<div class="code">' + esc(json.error) + '</div>'
+        + '<div class="msg">' + esc(json.message || "") + '</div>'
+        + '<div class="explain">' + esc(EXPLAIN[json.error] || "未知错误码，看原始响应。") + '</div>'
+        + '</div>';
+      return;
+    }
+
+    var d = (json && json.data) || null;
+    if(!d){
+      box.innerHTML = '<div class="verdict neutral"><div class="code">响应里没有 data</div>'
+        + '<div class="msg">按原始响应排查。</div></div>';
+      return;
+    }
+
+    var ok = d.success === true;
+    var code = d.code || "—";
+    var kind = ok ? "ok" : (code === "PENDING_APPROVAL" ? "pending" : "denied");
+
+    var html = '<div class="verdict ' + kind + '">'
+      + '<div class="code">' + esc(code) + '</div>'
+      + '<div class="msg">' + (ok ? "放行" : (code === "PENDING_APPROVAL" ? "挂人工审批" : "未放行"))
+      + (d.message ? " — " + esc(d.message) : "") + '</div>';
+
+    if(d.approvalTicketId){
+      html += '<div class="ticket">审批单号 ' + esc(d.approvalTicketId) + '</div>';
+    }
+
+    html += '<div class="explain">' + esc(EXPLAIN[code] || "这个码不在速查表里，按原始响应判断。") + '</div>';
+    html += '</div>';
+
+    if(d.output && Object.keys(d.output).length){
+      html += '<pre>' + esc(JSON.stringify(d.output, null, 2)) + '</pre>';
+    }
+    box.innerHTML = html;
+  }
+
+  // 启动
+  $("token").value = sessionStorage.getItem("inkarmor.token") || "";
+  probe();
+})();
+</script>
+</body>
+</html>

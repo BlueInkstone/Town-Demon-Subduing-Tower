@@ -132,8 +132,10 @@ public class V19AuditSealTest {
         eq("写入-序号连续", all.get(1).seq, 2L);
         eq("写入-首条前驱", all.get(0).prevHash, "GENESIS");
         eq("写入-后条前驱接前条", all.get(1).prevHash, all.get(0).hash);
+        // V2.2 起摘要把时间戳也算进去，口径统一走 AuditRecord.hashInput
         eq("写入-首条哈希由存储计算", all.get(0).hash,
-                AuditCrypto.chain(KEY, "1|A|1|GENESIS"));
+                AuditCrypto.chain(KEY, AuditRecord.hashInput(
+                        all.get(0).seq, "A", "1", "GENESIS", all.get(0).ts)));
         check("写入-链可验", s.verifyChain());
     }
 

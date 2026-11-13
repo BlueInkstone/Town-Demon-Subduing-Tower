@@ -23,8 +23,12 @@ import java.util.concurrent.locks.ReentrantLock;
  * 额外把每条记录<b>追加写</b>到文件：</p>
  * <pre>
  * #SEGMENT &lt;uuid&gt; prev=GENESIS
- * &lt;seq&gt;\t&lt;action&gt;\t&lt;hash&gt;\t&lt;payload&gt;
+ * &lt;seq&gt;\t&lt;action&gt;\t&lt;hash&gt;\t&lt;ts&gt;\t&lt;payload&gt;
  * </pre>
+ *
+ * <p><b>V2.2 起的第五列 {@code ts}</b>：ISO-8601 UTC、毫秒精度，参与链摘要。
+ * 旧日志只有四列，读的时候按列数判定口径（四列 = 无时间戳的老口径），
+ * 因此升级不需要迁移，历史记录逐条仍然自洽。</p>
  *
  * <p><b>V1.9 / I4 新增两层</b>：</p>
  * <ol>
@@ -269,7 +273,8 @@ public class FileAuditStore extends HashChainAuditStore {
 
     @Override
     protected void onAppended(AuditRecord r) {
-        String line = r.seq + "\t" + safe(r.action) + "\t" + safe(r.hash) + "\t" + safe(r.payload) + "\n";
+        String line = r.seq + "\t" + safe(r.action) + "\t" + safe(r.hash)
+                + "\t" + safe(r.ts) + "\t" + safe(r.payload) + "\n";
         ioLock.lock();
         try {
             Files.write(file, (line).getBytes(StandardCharsets.UTF_8), StandardOpenOption.APPEND);
@@ -322,7 +327,8 @@ public class FileAuditStore extends HashChainAuditStore {
                 prev = GENESIS;
                 continue;
             }
-            String[] p = line.split("\t", 4);
+            // 五列 = V2.2 起带时间戳；四列 = 旧日志（payload 在末列）
+            String[] p = line.split("\t", 5);
             if (p.length < 4) {
                 out.problem = "格式损坏：" + line;
                 return out;
@@ -334,7 +340,9 @@ public class FileAuditStore extends HashChainAuditStore {
                 out.problem = "序号不可解析：" + line;
                 return out;
             }
-            String input = seq + "|" + p[1] + "|" + p[3] + "|" + prev;
+            String ts = p.length >= 5 ? p[3] : null;
+            String payload = p.length >= 5 ? p[4] : p[3];
+            String input = AuditRecord.hashInput(seq, p[1], payload, prev, ts);
             if (!AuditCrypto.chain(key, input).equals(p[2])) {
                 // 回退判定：升级前写入的旧段用 SHA-256
                 if (key != null && AuditCrypto.sha256(input).equals(p[2])) {

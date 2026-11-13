@@ -303,6 +303,7 @@
         <button class="sub-nav-btn" onclick="switchSubTab('B2')">计划单</button>
         <button class="sub-nav-btn" onclick="switchSubTab('B3')">审计</button>
         <button class="sub-nav-btn" onclick="switchSubTab('B4')">同步暂存</button>
+      <button class="sub-nav-btn" onclick="switchSubTab('B5')">指标体检</button>
       </div>
 
       <!-- ========== B1 审批单区 ========== -->
@@ -378,6 +379,10 @@
           <input id="b3-q" style="width:160px" placeholder="关键字">
           <label style="color:var(--text-dim);font-size:13px;margin-left:8px">条数</label>
           <input id="b3-limit" type="number" style="width:70px" value="100" min="1" max="500">
+          <label style="color:var(--text-dim);font-size:13px;margin-left:8px">起</label>
+          <input id="b3-from" type="datetime-local" style="width:200px" title="按写入时间过滤（含），留空表示不限">
+          <label style="color:var(--text-dim);font-size:13px;margin-left:8px">止</label>
+          <input id="b3-to" type="datetime-local" style="width:200px" title="按写入时间过滤（含），留空表示不限">
           <button onclick="loadAudit()">查询</button>
           <button onclick="resetAudit()">重置</button>
           <div class="spacer"></div>
@@ -388,7 +393,7 @@
             <table>
               <thead>
                 <tr>
-                  <th>序号</th><th>动作</th><th>哈希</th><th>内容</th>
+                  <th>序号</th><th>时间（UTC）</th><th>动作</th><th>哈希</th><th>内容</th>
                 </tr>
               </thead>
               <tbody id="b3-tbody"></tbody>
@@ -439,6 +444,30 @@
             </table>
           </div>
           <div class="empty" id="b4-empty" style="display:none">暂无数据</div>
+        </div>
+      </div>
+
+      <!-- ========== B5 指标与体检 ========== -->
+      <div class="sub-content" id="sub-b5">
+        <div class="toolbar">
+          <button onclick="loadB5()">刷新</button>
+          <div class="spacer"></div>
+          <span style="color:var(--text-mute);font-size:12px">
+            这两个端点由 <code>towndemontower.metrics-endpoint</code> 控制，和 <code>admin-api-enabled</code> 是两个独立开关
+          </span>
+        </div>
+        <div class="stats-grid" id="b5-rates"></div>
+        <div class="panel" style="padding:16px;margin-bottom:16px;">
+          <div id="b5-integrity"><span style="color:var(--text-mute);font-size:13px">体检结果加载中…</span></div>
+        </div>
+        <div class="panel">
+          <div class="table-scroll">
+            <table>
+              <thead><tr><th>计数器</th><th style="width:160px">值</th></tr></thead>
+              <tbody id="b5-counters"></tbody>
+            </table>
+          </div>
+          <div class="empty" id="b5-empty" style="display:none">还没有计数器——说明这条链还没被调用过</div>
         </div>
       </div>
     </div>
@@ -629,13 +658,35 @@
     $("global-banner").className = "global-banner";
   }
   
+  // 带时区的时间（ISO Instant，以 Z / ±hh:mm 结尾）按浏览器本地时区显示；
+  // LocalDateTime（交付看板的计划/实际时间）没有时区，只能按服务端原值展示，不能转换。
+  function hasZone(dt){
+    return /(Z|[+-]\d{2}:?\d{2})$/.test(String(dt));
+  }
+
+  function localTime(dt){
+    var d = new Date(dt);
+    if(isNaN(d.getTime())) return null;
+    var p = function(n){ return (n < 10 ? "0" : "") + n; };
+    return d.getFullYear() + "-" + p(d.getMonth()+1) + "-" + p(d.getDate()) + " "
+      + p(d.getHours()) + ":" + p(d.getMinutes()) + ":" + p(d.getSeconds());
+  }
+
   function fmt(dt){
     if(!dt) return "—";
+    if(hasZone(dt)){
+      var local = localTime(dt);
+      if(local) return local;
+    }
     return String(dt).replace("T"," ").slice(0,19);
   }
-  
+
   function fmtShort(dt){
     if(!dt) return "—";
+    if(hasZone(dt)){
+      var local = localTime(dt);
+      if(local) return local.slice(0,16);
+    }
     return String(dt).replace("T"," ").slice(0,16);
   }
   
@@ -657,7 +708,9 @@
           var err = new Error((data && data.message) || ("HTTP " + res.status));
           err.status = res.status; 
           err.data = data;
-          err.code = data && data.code;
+          // 统一信封里 code 是数字（=HTTP 状态），机器可读的错误码在 error。
+          // 页面各处都按字符串错误码分支（SPOOL_DISABLED / SELF_APPROVAL / …），这里统一取 error，取不到再回落到 code。
+          err.code = data && (data.error || data.code);
           err.error = data && data.error;
           throw err;
         }
@@ -671,7 +724,14 @@
     opt = opt || {};
     opt.headers = opt.headers || {};
     opt.headers["X-Governance-Token"] = token || "";
-    return req(API_ADMIN + url, opt);
+    // 治理管理接口回的是统一信封 {code,message,data,error}，调用方要的是 data。
+    // 不解包的话，审批单/计划单/审计/暂存四个区永远渲染成空——数据明明在，界面却说没有。
+    return req(API_ADMIN + url, opt).then(function(res){
+      if(res && typeof res === "object" && Object.prototype.hasOwnProperty.call(res, "code")){
+        return res.data;
+      }
+      return res;
+    });
   }
 
   // ========== G2 页签切换 ==========
@@ -691,12 +751,16 @@
   window.switchSubTab = function(sub){
     currentSubTab = sub;
     document.querySelectorAll(".sub-nav-btn").forEach(function(btn, i){
-      var subs = ["B1","B2","B3","B4"];
+      var subs = ["B1","B2","B3","B4","B5"];
       btn.classList.toggle("active", subs[i] === sub);
     });
     document.querySelectorAll(".sub-content").forEach(function(content){
       content.classList.toggle("active", content.id === "sub-" + sub.toLowerCase());
     });
+    // 指标页每次进入都刷新一次：它读的是计数器快照，停在那儿就是旧数据
+    if(sub === "B5"){
+      loadB5();
+    }
   };
 
   // ========== G4 令牌管理 ==========
@@ -814,9 +878,9 @@
       tr.appendChild(td1);
 
       tr.appendChild(createTd(it.owner));
-      tr.appendChild(createTd(fmt(it.plannedStart), "time"));
-      tr.appendChild(createTd(fmt(it.plannedEnd), "time"));
-      tr.appendChild(createTd(fmt(it.actualEnd), "time"));
+      tr.appendChild(timeTd(it.plannedStart));
+      tr.appendChild(timeTd(it.plannedEnd));
+      tr.appendChild(timeTd(it.actualEnd));
 
       var tdProg = document.createElement("td");
       var wrap = document.createElement("div"); 
@@ -874,6 +938,13 @@
     var td = document.createElement("td");
     td.textContent = (text === null || text === undefined || text === "") ? "—" : text;
     if(cls) td.className = cls;
+    return td;
+  }
+
+  // 时间单元格：显示本地时区值，悬停可看到服务端返回的原始时间戳
+  function timeTd(raw, cls){
+    var td = createTd(fmt(raw), cls || "time");
+    if(raw) td.title = String(raw);
     return td;
   }
 
@@ -1047,8 +1118,8 @@
       tdSt.appendChild(tag);
       tr.appendChild(tdSt);
       
-      tr.appendChild(createTd(fmt(it.createdAt), "time"));
-      tr.appendChild(createTd(fmt(it.deadline), "time"));
+      tr.appendChild(timeTd(it.createdAt));
+      tr.appendChild(timeTd(it.deadline));
       tr.appendChild(createTd(it.approver));
       
       var tdOps = document.createElement("td");
@@ -1092,15 +1163,16 @@
       {label: "回滚方案", value: item.rollbackPlan},
       {label: "申请人", value: item.requestedBy},
       {label: "状态", value: item.status},
-      {label: "创建时间", value: fmt(item.createdAt)},
-      {label: "截止时间", value: fmt(item.deadline)},
+      {label: "创建时间", value: fmt(item.createdAt), raw: item.createdAt},
+      {label: "截止时间", value: fmt(item.deadline), raw: item.deadline},
       {label: "审批人", value: item.approver},
       {label: "审批意见", value: item.comment},
-      {label: "决策时间", value: fmt(item.decidedAt)}
+      {label: "决策时间", value: fmt(item.decidedAt), raw: item.decidedAt}
     ];
     fields.forEach(function(f){
       var div = document.createElement("div");
       div.className = "drawer-field";
+      if(f.raw) div.title = f.raw;
       div.innerHTML = '<div class="label">' + f.label + '</div><div class="value">' + (f.value || "—") + '</div>';
       body.appendChild(div);
     });
@@ -1217,8 +1289,8 @@
       tr.appendChild(tdSt);
       
       tr.appendChild(createTd(it.summary));
-      tr.appendChild(createTd(fmt(it.requestedAt), "time"));
-      tr.appendChild(createTd(fmt(it.decidedAt), "time"));
+      tr.appendChild(timeTd(it.requestedAt));
+      tr.appendChild(timeTd(it.decidedAt));
       tr.appendChild(createTd(it.decidedBy));
       
       var tdOps = document.createElement("td");
@@ -1271,14 +1343,15 @@
       {label: "任务号", value: item.taskId},
       {label: "状态", value: item.status},
       {label: "摘要", value: item.summary},
-      {label: "提交时间", value: fmt(item.requestedAt)},
-      {label: "决策时间", value: fmt(item.decidedAt)},
+      {label: "提交时间", value: fmt(item.requestedAt), raw: item.requestedAt},
+      {label: "决策时间", value: fmt(item.decidedAt), raw: item.decidedAt},
       {label: "决策人", value: item.decidedBy},
       {label: "审批备注", value: item.note}
     ];
     fields.forEach(function(f){
       var div = document.createElement("div");
       div.className = "drawer-field";
+      if(f.raw) div.title = f.raw;
       div.innerHTML = '<div class="label">' + f.label + '</div><div class="value">' + (f.value || "—") + '</div>';
       body.appendChild(div);
     });
@@ -1380,6 +1453,13 @@
   };
 
   // ========== B3 审计 ==========
+  // datetime-local 给的是本地时区、不带秒；后端按定长 UTC 字符串比较，所以先转 ISO-8601 UTC
+  function toUtcIso(localValue){
+    if(!localValue) return "";
+    var d = new Date(localValue);
+    return isNaN(d.getTime()) ? "" : d.toISOString();
+  }
+
   window.loadAudit = function(){
     var action = $("b3-action").value.trim();
     var q = $("b3-q").value.trim();
@@ -1388,9 +1468,14 @@
     if(limit > 500) limit = 500;
     auditLimit = limit;
     
+    var from = toUtcIso($("b3-from").value);
+    var to = toUtcIso($("b3-to").value);
+
     var params = [];
     if(action) params.push("action=" + encodeURIComponent(action));
     if(q) params.push("q=" + encodeURIComponent(q));
+    if(from) params.push("from=" + encodeURIComponent(from));
+    if(to) params.push("to=" + encodeURIComponent(to));
     params.push("limit=" + auditLimit);
     params.push("offset=" + auditOffset);
     
@@ -1407,6 +1492,8 @@
     $("b3-action").value = "";
     $("b3-q").value = "";
     $("b3-limit").value = "100";
+    $("b3-from").value = "";
+    $("b3-to").value = "";
     auditOffset = 0;
     auditLimit = 100;
     loadAudit();
@@ -1437,6 +1524,8 @@
     items.forEach(function(it){
       var tr = document.createElement("tr");
       tr.appendChild(createTd(it.seq));
+      // 旧记录（V2.2 之前）没有时间戳，显示 — 而不是编一个时间出来
+      tr.appendChild(timeTd(it.ts, "mono"));
       tr.appendChild(createTd(it.action));
       tr.appendChild(createTd(it.hash, "hash"));
       
@@ -1473,9 +1562,9 @@
       var validText = res.valid ? '<span style="color:var(--ok);">✓ 链完整</span>' : '<span style="color:var(--danger);">✗ 链校验失败</span>';
       var html = '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">';
       html += '<div class="drawer-field"><div class="label">校验结果</div><div class="value">' + validText + '</div></div>';
-      html += '<div class="drawer-field"><div class="label">记录数</div><div class="value">' + (res.records || 0) + '</div></div>';
+      html += '<div class="drawer-field"><div class="label">记录数（本次启动段）</div><div class="value">' + (res.records || 0) + '</div></div>';
       if(res.anchorRecords !== undefined){
-        html += '<div class="drawer-field"><div class="label">锚点记录数</div><div class="value">' + res.anchorRecords + '</div></div>';
+        html += '<div class="drawer-field"><div class="label">锚点记录数（全文件累计）</div><div class="value">' + res.anchorRecords + '</div></div>';
       }
       if(res.anchorLag !== undefined){
         html += '<div class="drawer-field"><div class="label">锚点延迟</div><div class="value">' + res.anchorLag + (res.anchorLag > 0 ? ' (追平中)' : '') + '</div></div>';
@@ -1484,6 +1573,9 @@
         html += '<div class="drawer-field"><div class="label">副本失败数</div><div class="value" style="' + (res.replicaFailures > 0 ? 'color:var(--danger);' : '') + '">' + res.replicaFailures + '</div></div>';
       }
       html += '</div>';
+      html += '<div style="margin-top:8px;color:var(--text-mute);font-size:12px">'
+        + '审计文件按启动分段：记录数只算本次启动段，锚点记录数是全文件累计，两者不同属正常；'
+        + '重启前的历史段需查服务器上的审计文件，本页不提供跨段查询。</div>';
       content.innerHTML = html;
     }).catch(function(e){
       toast("校验失败：" + (e.message || "未知错误"), "err");
@@ -1528,6 +1620,8 @@
     $("b4-tbody").innerHTML = "";
     $("b4-empty").innerHTML = "同步暂存区未启用（需文件审计存储 + 至少一个锚点副本）";
     $("b4-empty").style.display = "block";
+    // 暂存区没开就没有任何可做的操作：四个按钮一并禁用，避免点了继续报 404
+    [...document.querySelectorAll("#sub-b4 button")].forEach(function(b){ b.disabled = true; });
   }
   
   function renderB4Stats(stats){
@@ -1559,7 +1653,7 @@
       tr.appendChild(createTd(it.file));
       tr.appendChild(createTd(it.replica));
       tr.appendChild(createTd(it.attempts));
-      tr.appendChild(createTd(fmt(it.createdAt), "time"));
+      tr.appendChild(timeTd(it.createdAt));
       tr.appendChild(createTd(it.lastError || "—"));
       
       var tdSnapshot = document.createElement("td");
@@ -1614,15 +1708,182 @@
     });
   };
 
+  // ========== B5 指标与体检 ==========
+  // 这两个端点没有 /admin 前缀（/towndemontower/metrics、/towndemontower/integrity），
+  // 所以不能复用 adminReq()；令牌头相同，仍是 X-Governance-Token。
+  function b5Req(path){
+    var token = sessionStorage.getItem("twd.adminToken") || "";
+    return req(path, {headers: {"X-Governance-Token": token}});
+  }
+
+  function b5esc(s){
+    return String(s === null || s === undefined ? "" : s).replace(/[&<>"']/g, function(c){
+      return {"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c];
+    });
+  }
+
+  function b5pct(v){
+    if(v === null || v === undefined) return "—";
+    var n = Number(v);
+    if(isNaN(n)) return "—";
+    return (n * 100).toFixed(2) + "%";
+  }
+
+  function b5num(v){
+    return (v === null || v === undefined) ? "—" : v;
+  }
+
+  function b5Card(label, value, color){
+    return '<div class="stat-card"><div class="label">' + label + '</div>'
+      + '<div class="value"' + (color ? ' style="color:' + color + '"' : '') + '>' + value + '</div></div>';
+  }
+
+  // 发现项的代码表：接口只回代码，含义在前端补齐（新增代码时同步这里，未知代码会原样显示）
+  var B5_FINDINGS = {
+    GATE_KEY_MISSING: "治理挡板用的是开发密钥，生产环境必须换成正式密钥。",
+    AUDIT_KEY_MISSING: "审计链的 HMAC 密钥为空，链被篡改也不会被发现。",
+    AGENT_ID_DEFAULT: "调用没带 agentId，审计记在默认身份下，追责会失焦。",
+    ANCHOR_SINGLE_COPY: "锚点只有一份、没有异地副本；主机损坏即失去对照。",
+    AUTO_GRANT_ENABLED: "自动授予声明权限开着，等于绕过审批环节。",
+    PLAN_STORE_IN_MEMORY: "计划单存在内存里，重启即丢。",
+    APPROVAL_STORE_IN_MEMORY: "审批单存在内存里，重启即丢。",
+    PERMISSION_STORE_IN_MEMORY: "权限表存在内存里，重启即丢。",
+    OUTBOX_IN_MEMORY: "事务 Outbox 在内存里，重启会丢待发事件。",
+    AUDIT_CHAIN_BROKEN: "审计链校验不通过，存在断点或被改写的记录。"
+  };
+
+  function b5Meaning(f){
+    if(f.detail) return f.detail;
+    return B5_FINDINGS[f.code] || "未知发现项，按代码到服务端自检日志里查。";
+  }
+
+  // 观测端点未开启时切到禁用态：不再每次进入页签都打一次必然 404 的请求
+  var b5Disabled = false;
+
+  window.loadB5 = function(){
+    if(b5Disabled) return;
+    b5Req("/towndemontower/metrics").then(renderB5Metrics).catch(function(e){ b5Error(e, "指标"); });
+    b5Req("/towndemontower/integrity").then(renderB5Integrity).catch(function(e){ b5Error(e, "体检"); });
+  };
+
+  function b5Error(e, area){
+    if(e.status === 404){
+      b5Disabled = true;
+      var btn = document.querySelector("#sub-b5 button");
+      if(btn) btn.disabled = true;
+      $("b5-rates").innerHTML = "";
+      $("b5-counters").innerHTML = "";
+      $("b5-empty").innerHTML = "指标与体检端点未开启：需 towndemontower.metrics-endpoint=true";
+      $("b5-empty").style.display = "block";
+      $("b5-integrity").innerHTML = '<span style="color:var(--text-mute);font-size:13px">端点未开启，没有数据可看。</span>';
+      // 两个端点都会 404，横幅只弹一次
+      if(area === "指标"){
+        showBanner("指标/体检端点未开启：服务端需要 towndemontower.metrics-endpoint=true（与 admin-api-enabled 是两个独立开关）", "warn", false);
+      }
+    } else if(e.status === 401 || e.code === "UNAUTHORIZED"){
+      showBanner("令牌无效或已过期", "error", false);
+      updateBAuthState();
+    } else if(e.status === 403){
+      showBanner("观测接口未配置令牌（服务端 metrics-token 为空）", "warn", false);
+    } else {
+      toast((area || "指标") + "加载失败：" + (e.message || "未知错误"), "err");
+    }
+  }
+
+  function renderB5Metrics(m){
+    m = m || {};
+    var rates = [
+      ["拒绝率", b5pct(m.denialRate), "拒绝 / 总调用"],
+      ["误拒率", b5pct(m.falseRejectionRate), "被标注误拒 / 拒绝"],
+      ["过度保守率", b5pct(m.overConservatismRate), "转人工 / 总调用"],
+      ["误执行率", b5pct(m.misExecutionRate), "被标注误执行 / 已执行"],
+      ["缓存命中率", b5pct(m.cacheHitRate), "命中 / (命中+未命中)"]
+    ];
+    $("b5-rates").innerHTML = rates.map(function(r){
+      return '<div class="stat-card"><div class="label">' + r[0] + '</div>'
+        + '<div class="value">' + r[1] + '</div>'
+        + '<div class="label" style="margin-top:4px">' + r[2] + '</div></div>';
+    }).join("");
+
+    var counters = m.counters || {};
+    var keys = Object.keys(counters);
+    $("b5-empty").style.display = keys.length ? "none" : "block";
+    $("b5-counters").innerHTML = keys.map(function(k){
+      return '<tr><td class="mono">' + b5esc(k) + '</td><td>' + b5num(counters[k]) + '</td></tr>';
+    }).join("");
+  }
+
+  function renderB5Integrity(v){
+    v = v || {};
+    var ok = v.compliant === true;
+    var chainOk = v.auditChainValid === true;
+
+    var html = '<div class="stats-grid" style="margin-bottom:12px">'
+      + b5Card("合规结论", ok ? "通过" : "有问题", ok ? "var(--ok)" : "var(--danger)")
+      + b5Card("当前模式", b5num(v.mode), null)
+      + b5Card("待审批", b5num(v.pendingApprovals), null)
+      + b5Card("审计链", chainOk ? "完整" : "断裂", chainOk ? "var(--ok)" : "var(--danger)")
+      + b5Card("审计条数", b5num(v.auditRecords), null)
+      + '</div>';
+
+    // 端点只暴露发现项的「代码」，不暴露级别与细节（那部分在服务端启动日志里）
+    var findings = (v.findings || []).map(function(f){
+      return (typeof f === "string") ? {code: f} : f;
+    });
+    if(findings.length){
+      html += '<div class="table-scroll"><table><thead><tr><th style="width:250px">发现项</th><th>含义</th></tr></thead><tbody>';
+      findings.forEach(function(f){
+        html += '<tr><td><span class="tag PENDING">' + b5esc(f.code) + '</span></td>'
+          + '<td>' + b5esc(b5Meaning(f)) + '</td></tr>';
+      });
+      html += '</tbody></table></div>';
+      html += '<div style="margin-top:8px;color:var(--text-mute);font-size:12px">'
+        + '共 ' + findings.length + ' 项。接口只给代码，级别与细节在服务端自检日志里；'
+        + '「合规结论=通过」表示其中没有 CRITICAL 项。</div>';
+    } else {
+      html += '<div style="color:var(--ok);font-size:13px">没有发现项。</div>';
+    }
+
+    var reps = v.auditAnchorReplicas || [];
+    if(reps.length){
+      html += '<div style="margin-top:14px"><div style="font-size:12px;color:var(--text-dim);margin-bottom:6px">锚点副本</div>'
+        + '<div class="table-scroll"><table><thead><tr><th>副本</th><th>异地</th><th>条数</th><th>可读</th><th>错误</th></tr></thead><tbody>';
+      reps.forEach(function(r){
+        html += '<tr><td class="mono">' + b5esc(r.name) + '</td><td>' + (r.offHost ? "是" : "否") + '</td>'
+          + '<td>' + b5num(r.records) + '</td>'
+          + '<td>' + (r.readable ? '<span class="tag APPROVED">可读</span>' : '<span class="tag denied">不可读</span>') + '</td>'
+          + '<td>' + (r.error ? b5esc(r.error) : "—") + '</td></tr>';
+      });
+      html += '</tbody></table></div></div>';
+    }
+
+    if(v.auditAnchorLag !== undefined){
+      html += '<div style="margin-top:12px;color:var(--text-mute);font-size:12px">'
+        + '锚点已追平 ' + b5num(v.auditAnchorRecords) + ' 条，落后 ' + b5num(v.auditAnchorLag) + ' 条'
+        + '（批量 ' + b5num(v.auditAnchorBatch) + '）</div>';
+    }
+
+    $("b5-integrity").innerHTML = html;
+  }
+
   // ========== 错误处理 ==========
+
+  /** 治理接口整体不可用：横幅说明原因，并禁用各区的操作按钮（导航与令牌弹层保留可用）。 */
+  function disableAdminOps(){
+    [...document.querySelectorAll("#tab-b .sub-content button")].forEach(function(b){ b.disabled = true; });
+  }
+
   function handleAdminError(e, area){
     if(e.status === 401 || e.code === "UNAUTHORIZED"){
       showBanner("令牌无效或已过期", "error", false);
       updateBAuthState();
     } else if(e.status === 403 && e.code === "ADMIN_API_DISABLED"){
       showBanner("管理接口未配置访问令牌（服务端 metrics-token 为空）", "warn", false);
+      disableAdminOps();
     } else if(e.status === 404){
-      showBanner("管理接口未开启", "warn", false);
+      // 路由不存在（管理接口未装配）：响应体不是统一信封，与 SPOOL_DISABLED 这种"带信封的 404"区分开
+      showBanner("管理接口未开启（towndemontower.admin-api-enabled=false）", "warn", false);
+      disableAdminOps();
     } else if(e.status === 403){
       showBanner("无权限访问", "error", false);
     } else {
@@ -1642,6 +1903,8 @@
       loadAudit();
     } else if(currentSubTab === "B4"){
       loadSpool();
+    } else if(currentSubTab === "B5"){
+      loadB5();
     }
   };
 

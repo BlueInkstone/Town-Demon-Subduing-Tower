@@ -28,6 +28,30 @@ towndemontower-spring-starter（薄适配层，本次仅定义接口约定，不
 
 **归属判据（Dev 自检）：** 任何 `import org.springframework.*` 的类属于 starter；否则属于 core。core 单测不启动 Spring。
 
+### 1.1 三档接入方式与各自的最低 JDK
+
+分层不只是代码整洁问题，它直接决定了业务方能用什么 JDK。三种接入形态的边界如下：
+
+| 档 | 业务方接入什么 | 拿到什么能力 | 最低 JDK | 拿不到什么 |
+|---|---|---|---|---|
+| 一 | 直接依赖 `towndemontower-core` | 纯方法调用：装饰器链、风险分级、审批、哈希链审计、状态机 | **8** | 注解与 AOP、自动配置、tx/Outbox，链要自己装配 |
+| 二 | 引 `towndemontower-spring-starter` | `@AgentSkill` 注解 + AOP 拦截，入参自动翻成意图对象；自动配置、管理端点、tx | **17** | —（能力最全的一档） |
+| 三 | 单独跑 `towndemontower-gateway` | HTTP `POST /api/evaluate`，只裁决不执行；业务方零 Java 依赖 | **8** | 进程内拦截、写前快照与沙箱执行（网关只出裁决） |
+
+**为什么第二档救不到 8**：Spring Boot 3.2.5 自身要求 Java 17，其字节码是 class 61；用 `--release 8` 编译
+引用它的代码会直接报 `class file has wrong version 61.0`。这不是本项目的选择，是上游框架的硬门槛。
+
+**编译目标只有两档，不得抬高**：
+
+| 模块 | 目标 | 字节码 | 验收方式 |
+|---|---|---|---|
+| `core`、`gateway` | Java 8 | class 52 | 读 jar 内任一 class 主版本号 = 52；JRE 8 实跑 |
+| `starter`、`delivery`、`agents` | Java 17 | class 61 | 同上 = 61；JDK 17 实跑 |
+
+代价要写清楚：core 锁在 Java 8，意味着 core 里**不能**用 record、文本块、`List.of`、`Stream.toList()`、
+instanceof 模式匹配、箭头 switch；而 starter/delivery/agents 这几样全在用。同一个仓库两套写法是
+换「Java 8 可嵌入」付的价，属于有意为之。改 core 时若图省事写了 9+ 的写法，`javac --release 8` 会当场拦下。
+
 ## 2. 契约 POJO（语言中立，JSON 序列化，禁 Optional/CompletableFuture/Java 序列化）
 
 ```java

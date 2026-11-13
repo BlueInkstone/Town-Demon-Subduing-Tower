@@ -7,7 +7,7 @@
 本仓库按 **PM → Arch → Dev → QA → Ops** 五阶段顺序推进，每段交付物作为下一段输入，形成一条**完整可追溯的端到端实现链路**。
 当前 Java 主线已推进到 **v1.17**：治理内核（core）+ Spring 薄适配层（starter）+ 交付进度看板（delivery）+ Agent 注册表（agents）；
 **v2.0（2026-11-12 形态重定义）**：从「多语言各写一套治理实现」改为「一份 Java 裁决服务 + 一份 JSON 协议」。网关服务已可运行（本地 JRE 8 实测，分级/鉴权/审计落盘见 [docs/39-网关接入指南.md](docs/39-网关接入指南.md)，该文 §8 列了尚不支持的六项，接入前请先读）。原 Python / TypeScript SDK 已归档、不再维护。
-Java 主线全仓 **1575 项测试通过**（47 个自运行器，全 rc=0）：core 774（682 + 审计写入吞吐压测 8 + 计划单轮转 29 + 同步暂存 55）、starter 341（237 + R4 用例 25 + 轮转 8 + 暂存 16 + 治理管理接口 50）、delivery 219、agents 241；全仓静态扫描 `files=263 violations=0 warnings=0`。v1.11 起"经过治理链"是**前置条件**而不是约定（`GovernancePass` 一次性令牌），
+Java 主线全仓 **1578 项测试通过**（47 个自运行器 + gateway 27 个 JUnit，全 rc=0）：core 774（682 + 审计写入吞吐压测 8 + 计划单轮转 29 + 同步暂存 55）、starter 341（237 + R4 用例 25 + 轮转 8 + 暂存 16 + 治理管理接口 50）、delivery 221（含页面契约 2 条）、agents 242（含花名册页面 1 条）；全仓静态扫描 `files=263 violations=0 warnings=0`。v1.11 起"经过治理链"是**前置条件**而不是约定（`GovernancePass` 一次性令牌），
 "绕过注解直调"在**构建期**即失败（`BypassScanMain`，零依赖）；v1.12 起 shell 类工具可以声明
 **命令模板**（`commandTemplate`），形状不符直接拒绝，不再靠黑名单猜危险；v1.13 起需要"先批计划再动手"的工具
 可以声明 `requiresPlanApproval`，未批准直接返回 `PLAN_APPROVAL_REQUIRED`，审批动作本身进审计链；v1.14 起计划单
@@ -41,6 +41,8 @@ Controller 不再为取 `now()` 注入业务 Service（构建期 `CP10-R4` 归�
   `starter` / `delivery` / `agents` = **Java 17**（class 61，Spring Boot 3.2.5 的下限）。
   **不要抬到 21 / 25**：Spring Boot 3.2.5 内嵌 ASM 读不了 class 69，应用会在扫描自动配置类时
   `ClassFormatException` 起不来（本项目踩过）。
+- **基线可视化**：[docs/java-baseline.html](docs/java-baseline.html)（浏览器直接打开，不需要起服务）
+  按模块列出编译目标、字节码版本、实测所用 JDK 与断言数，附三条复核命令。
 
 ## 最小链路（已运行验证）
 
@@ -62,13 +64,15 @@ IntentObject
 
 ```bash
 cd towndemontower-core
-# 用 JDK 25 直接编译运行（零 Maven 亦可；请先将 JDK 25 配置到 PATH）
-javac -d out $(find src/main/java src/test/java -name "*.java")
-java -cp out com.towndemontower.DemoRunner     # 演示最小链路
+# core 的目标是 Java 8：编译必须显式 --release 8。
+# 省略它就会按本机 JDK 版本出字节码（用 JDK 21/25 直接 javac 会得到 class 65/69），
+# 产物在 JRE 8 上一律 UnsupportedClassVersionError——本项目踩过这个坑。
+javac --release 8 -encoding UTF-8 -d out $(find src/main/java src/test/java -name "*.java")
+java -cp out com.towndemontower.DemoRunner     # 演示最小链路（JRE 8 / JDK 17 均可跑）
 java -cp out com.towndemontower.core.CoreTest  # 验收 34/34
 
-# 或用 Maven
-mvn -q -pl towndemontower-core test
+# 或用 Maven（仓库没有根聚合 pom，因此用 -f 指定模块，不能用 -pl）
+mvn -q -f towndemontower-core/pom.xml test
 
 # 方向 C / M1 只读行为报告（离线 CLI，默认关闭，运行即一次显式启用）
 java -cp out com.towndemontower.core.analysis.AuditAnalyzerMain \
@@ -83,6 +87,13 @@ java -cp out com.towndemontower.core.SkillResultWireTest     # 28/28（wire 结�
 # cd ../towndemontower-sdk-python && python -m pytest -q        # 126 passed（历史基线）
 # cd ../towndemontower-sdk-typescript && npm test               # 111 passed（历史基线）
 ```
+
+> `out/` 只是 `.gitignore` 里的本地编译输出（零 Maven 快速验证用），不要提交、不要拷进分发包。
+> 对外发布一律 `mvn clean package`，**`clean` 不能省**：增量编译会把旧 JDK 编出的高版本字节码留在
+> `target/classes` 里，`install` 之后会被原样装进本地仓库、再随 `lib/` 分发出去。
+> 验收办法只有一个：读 jar 内任一 class 的主版本号，core / gateway 必须是 52，Spring 三模块必须是 61。
+> `target/test-classes` 有同样的毛病：旧 JDK 编出来的测试类会让 `mvn test-compile` 认为"无需编译"，
+> 真跑测试时在 JDK 17 上直接 `UnsupportedClassVersionError`——看着像代码坏了，其实是没 clean。
 
 ## 模块结构
 
@@ -124,12 +135,13 @@ towndemontower-agents/src/main/java/com/towndemontower/agents/       （v1.4 Age
 │               AgentsModeToolPolicy, AgentSkillDescriptors,
 │               CorePermissionProvisioner, RegistrySkillCatalog
 ├── seed/       DefaultAgents（7 个演示 Agent）
-├── web/        AgentController, View/Request/SummaryView/ExceptionHandler（仅 REST，无页面）
+├── web/        AgentController, View/Request/SummaryView/ExceptionHandler + 花名册页面入口
 ├── config/     AgentsAutoConfiguration, AgentsOpenApiConfiguration, AgentsProperties
 └── AgentsApplication.java         可独立启动的演示入口（8081）
 
 towndemontower-gateway/                       （网关形态，可运行；见 docs/39）
 ├── POST /api/evaluate   独立运行的裁决服务（JDK 内置 HttpServer，无 Spring；thin jar + lib/）
+├── GET  /console        裁决控制台页面（单文件 HTML，令牌在页面里填）
 ├── python/              @inkarmor_guard 薄客户端（标准库，零依赖）
 └── Dockerfile           镜像定义（按 thin jar 结构改写，未实测）
 
@@ -225,6 +237,19 @@ java -jar target/towndemontower-delivery-0.1.0.jar --spring.profiles.active=demo
 
 打开 <http://127.0.0.1:8080/delivery/> 即可看到交付进度看板；
 REST 接口在 `/api/delivery/**`（`items` / `summary` / `meta`）。
+
+## 三个页面的入口
+
+| 页面 | 地址 | 起服务的方式 |
+|---|---|---|
+| 交付看板 + 治理管理 | <http://127.0.0.1:8080/delivery/> | delivery，demo profile（上面那段） |
+| └ 指标体检（子页签） | 同上 → 「治理管理」→「指标体检」 | 额外加 `--towndemontower.metrics-endpoint=true --towndemontower.metrics-token=<非空令牌>`；与 `admin-api-enabled` 是两个独立开关 |
+| Agent 花名册 | <http://127.0.0.1:8081/agents/> | agents，demo profile（8081 端口） |
+| 裁决控制台 | <http://127.0.0.1:8080/console> | gateway（`INKARMOR_API_TOKEN` 已配），令牌在页面里填 |
+
+三页都是**单文件 HTML**：内联 CSS/JS、不引 CDN、不加构建步骤，断网也能开。
+花名册与看板**只读**——状态流转、审批、计划这些写操作仍走 REST + 治理链，不在页面上做，
+否则等于给治理留了个绕过口。
 
 **接口文档（启动后可直接访问）**
 

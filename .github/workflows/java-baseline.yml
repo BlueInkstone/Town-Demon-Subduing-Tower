@@ -1,0 +1,74 @@
+name: java-baseline
+
+# 两档版本卡口：core / gateway 必须能编能跑在 Java 8；Spring 三模块必须在 Java 17。
+# 目的不是"跑一遍测试"，而是挡住三类回归：
+#   1) core 里写进 record / List.of / Stream.toList() 这类 9+ 写法；
+#   2) 有人把 java.version 抬到 21/25（Spring Boot 3.2.5 的 ASM 读不了 class 69）；
+#   3) 增量编译把旧 JDK 的字节码留在 target/ 里，再被打包分发。
+on:
+  push:
+  pull_request:
+
+jobs:
+  verify:
+    name: ${{ matrix.module }} @ JDK ${{ matrix.jdk }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { module: towndemontower-core,           jdk: '8',  major: 52 }
+          - { module: towndemontower-gateway,        jdk: '8',  major: 52 }
+          - { module: towndemontower-spring-starter, jdk: '17', major: 61 }
+          - { module: towndemontower-delivery,       jdk: '17', major: 61 }
+          - { module: towndemontower-agents,         jdk: '17', major: 61 }
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: ${{ matrix.jdk }}
+          cache: maven
+
+      # 仓库没有根聚合 pom，下游模块靠本地仓库里的 core / starter 解析依赖，所以先装上游。
+      # core 自己这一档不装（避免用被测产物当输入）。
+      - name: Install upstream modules
+        if: matrix.module != 'towndemontower-core'
+        run: |
+          mvn -B -q -f towndemontower-core/pom.xml -DskipTests install
+          if [ "${{ matrix.module }}" = "towndemontower-delivery" ] || [ "${{ matrix.module }}" = "towndemontower-agents" ]; then
+            mvn -B -q -f towndemontower-spring-starter/pom.xml -DskipTests install
+          fi
+
+      - name: Compile and test
+        run: mvn -B -f ${{ matrix.module }}/pom.xml test
+
+      # 卡口本体：jar 内每一个 class 的主版本号都必须等于该模块的目标档位。
+      # 只看 pom 里的 release 不够——增量编译留下的旧 class 会一直待在 target/ 里。
+      - name: Assert bytecode level
+        run: |
+          python3 - "${{ matrix.module }}" "${{ matrix.major }}" <<'PY'
+          import glob, sys, zipfile
+
+          module, expected = sys.argv[1], int(sys.argv[2])
+          jars = glob.glob(f'{module}/target/*.jar')
+          if not jars:
+              sys.exit(f'no jar produced by {module}')
+
+          bad = []
+          for jar in jars:
+              with zipfile.ZipFile(jar) as z:
+                  for name in z.namelist():
+                      if name.endswith('.class'):
+                          head = z.read(name)[:8]
+                          major = head[6] * 256 + head[7]
+                          if major != expected:
+                              bad.append(f'{jar}:{name} -> {major}')
+
+          if bad:
+              print('\n'.join(bad[:10]))
+              sys.exit(f'bytecode mismatch: expected class {expected}')
+
+          print(f'OK {module} -> class {expected}')
+          PY

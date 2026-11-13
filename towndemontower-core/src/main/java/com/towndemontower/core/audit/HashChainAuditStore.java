@@ -1,5 +1,8 @@
 package com.towndemontower.core.audit;
 
+import java.time.Instant;
+import java.time.ZoneOffset;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -18,6 +21,16 @@ import java.util.concurrent.atomic.AtomicLong;
  * 因此"用 SHA-256 重算整链"的伪造在 HMAC 模式下必然失败。</p>
  */
 public class HashChainAuditStore implements AuditStore {
+
+    /**
+     * 时间戳格式：ISO-8601 UTC、毫秒精度、定长。
+     *
+     * <p>定长 + UTC 是有意为之：字符串比较即时间比较，过滤时不必解析时区，
+     * 也不会因为 {@code Instant.toString()} 自动省略毫秒而导致长短不一。</p>
+     */
+    private static final DateTimeFormatter TS_FORMAT =
+            DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'").withZone(ZoneOffset.UTC);
+
     private final List<AuditRecord> records = new CopyOnWriteArrayList<>();
     private final AtomicLong seqGen = new AtomicLong(0);
     private volatile String lastHash = "GENESIS";
@@ -48,12 +61,18 @@ public class HashChainAuditStore implements AuditStore {
     /** 便捷方法：调用方只给 action/payload，哈希与前驱由本存储计算。 */
     public synchronized void appendAuto(String action, String payload) {
         long seq = seqGen.incrementAndGet();
+        String ts = now();
         String h = AuditCrypto.chain(auditKey,
-                seq + "|" + action + "|" + payload + "|" + lastHash);
-        AuditRecord r = new AuditRecord(seq, action, payload, lastHash, h);
+                AuditRecord.hashInput(seq, action, payload, lastHash, ts));
+        AuditRecord r = new AuditRecord(seq, action, payload, lastHash, h, ts);
         records.add(r);
         lastHash = h;
         onAppended(r);
+    }
+
+    /** 当前时刻的审计时间戳（定长 ISO-8601 UTC）。 */
+    static String now() {
+        return TS_FORMAT.format(Instant.now());
     }
 
     /**
@@ -89,8 +108,9 @@ public class HashChainAuditStore implements AuditStore {
     public synchronized boolean verifyChain() {
         String prev = "GENESIS";
         for (AuditRecord r : records) {
+            // 口径与 appendAuto 共用 hashInput：带 ts 的按五段重算，旧记录按四段重算
             String expected = AuditCrypto.chain(auditKey,
-                    r.seq + "|" + r.action + "|" + r.payload + "|" + prev);
+                    AuditRecord.hashInput(r.seq, r.action, r.payload, prev, r.ts));
             if (!expected.equals(r.hash)) return false;
             prev = r.hash;
         }

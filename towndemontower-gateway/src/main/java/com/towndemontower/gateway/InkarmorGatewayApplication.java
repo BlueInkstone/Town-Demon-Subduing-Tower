@@ -3,6 +3,7 @@ package com.towndemontower.gateway;
 import com.sun.net.httpserver.HttpServer;
 import com.towndemontower.gateway.config.GatewayConfig;
 import com.towndemontower.gateway.core.GatewayVerdictEngine;
+import com.towndemontower.gateway.web.ConsoleHandler;
 import com.towndemontower.gateway.web.EvaluateHandler;
 import com.towndemontower.gateway.web.HealthHandler;
 
@@ -14,7 +15,8 @@ import java.util.concurrent.Executors;
  * [gateway] 墨铠网关入口。独立可运行的裁决服务，暴露：
  * <ul>
  *   <li>{@code POST /api/evaluate}：裁决入口，需令牌，写审计；</li>
- *   <li>{@code GET /api/health}：探活，不需要令牌，<b>不写审计</b>。</li>
+ *   <li>{@code GET /api/health}：探活，不需要令牌，<b>不写审计</b>；</li>
+ *   <li>{@code GET /console}：裁决控制台页面（{@link ConsoleHandler}），只读静态页，无秘密。</li>
  * </ul>
  *
  * <p>Java 8、不依赖 Spring：用 JDK 内置 {@link HttpServer} 提供 HTTP，
@@ -46,12 +48,15 @@ public final class InkarmorGatewayApplication {
         HttpServer server = HttpServer.create(new InetSocketAddress("0.0.0.0", port), 0);
         server.createContext("/api/evaluate", new EvaluateHandler(engine, config));
         server.createContext("/api/health", new HealthHandler());
+        // "/" 只服务裁决控制台；前缀匹配下 /api/* 仍然优先命中上面两个更具体的 context
+        server.createContext("/", new ConsoleHandler());
         server.setExecutor(Executors.newFixedThreadPool(config.threads()));
         server.start();
 
         System.out.println("Inkarmor Gateway (Java 8, no Spring) listening on :" + port);
         System.out.println("  POST /api/evaluate  (X-Inkarmor-Token required, audited)");
         System.out.println("  GET  /api/health    (no token, not audited)");
+        System.out.println("  GET  /console       (裁决控制台，浏览器直接打开；令牌在页面上填)");
         System.out.println("  audit -> " + config.auditPath()
                 + " | mode=" + config.modeName() + " | agent=" + config.agentId()
                 + " | threads=" + config.threads()

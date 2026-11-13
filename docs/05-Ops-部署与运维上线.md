@@ -19,13 +19,13 @@ Town Demon-Subduing Tower **不是独立程序**，是嵌入用户 Spring Boot �
 ## 2. 构建与发布
 
 ```bash
-# 构建 core（JDK 25 LTS）
+# 构建 core（目标 Java 8：必须显式 --release 8，否则按本机 JDK 出 65/69 字节码）
 cd towndemontower-core
-javac -d out $(find src/main/java src/test/java -name "*.java")
+javac --release 8 -encoding UTF-8 -d out $(find src/main/java src/test/java -name "*.java")
 java -cp out com.towndemontower.core.CoreTest   # 验收 34/34
 
-# 若使用 Maven（见 pom.xml）
-mvn -q -pl towndemontower-core test      # 触发 CoreTest
+# 若使用 Maven（见 pom.xml；无根聚合 pom，用 -f 指定模块）
+mvn -q -f towndemontower-core/pom.xml test      # 触发 CoreTest
 ```
 
 Maven 坐标（pom.xml 已就绪）：

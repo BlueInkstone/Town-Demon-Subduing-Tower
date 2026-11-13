@@ -66,7 +66,8 @@ public final class AuditLogReader {
                 prev = GENESIS;
                 continue;
             }
-            String[] p = line.split("\t", 4);
+            // 五列 = V2.2 起带时间戳；四列 = 旧日志（payload 在末列）
+            String[] p = line.split("\t", 5);
             if (p.length < 4) return invalid(out, "第 " + lineNo + " 行格式损坏", legacy);
 
             long seq;
@@ -77,8 +78,9 @@ public final class AuditLogReader {
             }
             String action = p[1];
             String hash = p[2];
-            String payload = p[3];
-            String input = seq + "|" + action + "|" + payload + "|" + prev;
+            String ts = p.length >= 5 ? p[3] : null;
+            String payload = p.length >= 5 ? p[4] : p[3];
+            String input = AuditRecord.hashInput(seq, action, payload, prev, ts);
             String expected = AuditCrypto.chain(key, input);
             if (!expected.equals(hash)) {
                 // 与 FileAuditStore.scan 相同的升级兼容判定：旧段可能用纯 SHA-256
@@ -88,7 +90,7 @@ public final class AuditLogReader {
                     return invalid(out, "第 " + lineNo + " 条摘要不匹配", legacy);
                 }
             }
-            out.add(new AuditRecord(seq, action, payload, prev, hash));
+            out.add(new AuditRecord(seq, action, payload, prev, hash, ts));
             prev = hash;
         }
         return new Loaded(out, true, legacy, null);
