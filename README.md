@@ -41,19 +41,67 @@
 | `contract/` | 权威 JSON 协议与校验脚本 |
 | `towndemontower-sdk-python/`、`towndemontower-sdk-typescript/` | ⚠️ 已归档（历史基线，见 `ARCHIVED.md`），不再维护 |
 
-## 快速验证（命令见各权威文档）
+## 快速验证（实测可抄，5 步跑通）
+
+> 仓库**没有根聚合 pom**，网关按 Maven 坐标依赖 core，所以必须先装 core 再打网关。
+> 以下在仓库根目录执行；`clean` 不能省（增量编译会留下旧 JDK 字节码）。
+> 一条命令自动完成「编译 → 起服务 → 探活 → 发意图 → 断言 → 关服务」：见 § 烟测脚本。
+
+**① 编译 core 到本机 Maven 仓库**
 
 ```bash
-# core：编译目标 Java 8，clean 不能省；完整命令与理由见 docs/测试清单.md
-cd towndemontower-core
-javac --release 8 -encoding UTF-8 -d out $(find src/main/java src/test/java -name "*.java")
-java -cp out com.towndemontower.DemoRunner
-java -cp out com.towndemontower.core.CoreTest
-
-# 协议门禁：python contract/verify_codes.py
-# 网关接入与启动：docs/网关接入指南.md
-# 全仓基线数字与回归口径：docs/测试清单.md
+mvn -B -q -f towndemontower-core/pom.xml clean install -DskipTests
 ```
+
+**② 打包网关**
+
+```bash
+mvn -B -q -f towndemontower-gateway/pom.xml clean package
+```
+
+产物是 `towndemontower-gateway/target/towndemontower-gateway-0.1.0.jar` + `target/lib/`，
+**两者必须一起拷走**；`lib/` 按 jar 所在目录解析，只拷 jar 会 `NoClassDefFoundError`。
+
+**③ 起服务**（令牌必配，否则所有请求 403；端口默认 8080）
+
+```bash
+INKARMOR_API_TOKEN=test PORT=8080 java -jar towndemontower-gateway/target/towndemontower-gateway-0.1.0.jar
+```
+
+**④ 探活与发意图**（另开终端）
+
+```bash
+curl http://127.0.0.1:8080/api/health
+# {"code":0,"message":"ok","data":{"status":"up","uptimeSeconds":...}}
+
+curl -X POST http://127.0.0.1:8080/api/evaluate \
+  -H 'X-Inkarmor-Token: test' -H 'Content-Type: application/json' \
+  -d '{"tool":"deleteData","args":{"table":"test_table","rows":"1"},"confidence":0.9,
+       "reason":"清理测试数据","expectedEffect":"删除一行","rollbackHint":"无"}'
+# 预期：data.code=R3_DENIED（不可逆操作硬拒绝，说明治理链真在工作）
+```
+
+**⑤ 协议门禁（可选）**
+
+```bash
+python contract/verify_codes.py    # 69/69
+```
+
+完整协议字段、配置项与尚不支持项见 `docs/网关接入指南.md`；全仓基线数字与回归口径见 `docs/测试清单.md`。
+
+## 一键烟测（外部开发者最短路径）
+
+不想手敲上面 5 步时，直接跑脚本——它自动完成编译 → 起服务 → 三个断言 → 关服务：
+
+```bash
+# Linux / macOS / Git Bash
+bash scripts/quickstart.sh
+
+# Windows PowerShell
+powershell -ExecutionPolicy Bypass -File scripts/quickstart.ps1
+```
+
+断言：① `/api/health` 返回 `status=up`；② 缺参数意图返回 `INTENT_FORMAT_INVALID`；③ 不可逆工具 `deleteData` 返回 `R3_DENIED`。三项全过打印 `ALL CHECKS PASSED` 并以退出码 0 结束；任一项失败退出码 1。脚本只依赖 JDK + Maven + Python3（协议门禁），不要求本机有 Docker。
 
 ## 页面入口（起服务方式见各模块文档）
 
