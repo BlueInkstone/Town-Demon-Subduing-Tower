@@ -83,3 +83,19 @@ jobs:
 
           print(f'OK {module} -> class {expected} ({checked} classes)')
           PY
+
+      # 构建期防绕过扫描：只在 core job 跑（扫描器 class 在 core/target/classes），
+      # 守的是「绕过治理的写法进不了主干」这条核心承诺；--strict 下 WARN 也阻断。
+      - name: Bypass scan (CP-10)
+        if: matrix.module == 'towndemontower-core'
+        run: java -cp towndemontower-core/target/classes com.towndemontower.core.bypass.BypassScanMain --root . --strict
+
+  # 协议门禁：零依赖 Python 脚本，校验 contract/ 权威 JSON 与三语言绑定是否同源。
+  # 不依赖 Java 编译产物，独立 job 跑，避免随 5 模块矩阵重复执行。
+  contract-gate:
+    name: contract gate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify wire contract and error codes
+        run: python3 contract/verify_codes.py
