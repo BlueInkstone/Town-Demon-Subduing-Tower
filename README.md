@@ -1,306 +1,79 @@
-# Town Demon-Subduing Tower — 端到端实现链路（PM → Arch → Dev → QA → Ops）
+# Town Demon-Subduing Tower — 导航页
 
-> **想先判断要不要参考**：看 [docs/16-产品介绍.md](docs/16-产品介绍.md)（定位、设计取舍、工程思想与边界）与 [docs/17-强制力与绕过面分析.md](docs/17-强制力与绕过面分析.md)（管得到哪里、管不到哪里）。本项目带有传播工程思想的性质，文档按「问题 → 取舍 → 局限 → 架构与契约 → 验证 → 用法」组织。
-> **想直接用**：看 [docs/00-快速上手.md](docs/00-快速上手.md) 的「最小可用」版（三处必需项）；完整配置按需再加。流程边界见 [docs/14-流程设计说明.md](docs/14-流程设计说明.md)。
-> 排期与拍板结论见 [docs/08-版本任务清单.md](docs/08-版本任务清单.md) 文末「排期（2026-11-12 拍板）」。
+> 本页只做**指路**，不复制状态、数字与结论——那类事实只在其权威出处维护，避免多处漂移。
+> 项目带传播工程思想的性质；文档按「问题 → 取舍 → 局限 → 架构与契约 → 验证 → 用法」组织。
 
-本仓库按 **PM → Arch → Dev → QA → Ops** 五阶段顺序推进，每段交付物作为下一段输入，形成一条**完整可追溯的端到端实现链路**。
-当前 Java 主线已推进到 **v1.17**：治理内核（core）+ Spring 薄适配层（starter）+ 交付进度看板（delivery）+ Agent 注册表（agents）；
-**v2.0（2026-11-12 形态重定义）**：从「多语言各写一套治理实现」改为「一份 Java 裁决服务 + 一份 JSON 协议」。网关服务已可运行（本地 JRE 8 实测，分级/鉴权/审计落盘见 [docs/39-网关接入指南.md](docs/39-网关接入指南.md)，该文 §8 列了尚不支持的六项，接入前请先读）。原 Python / TypeScript SDK 已归档、不再维护。
-Java 主线全仓 **1578 项测试通过**（47 个自运行器 + gateway 27 个 JUnit，全 rc=0）：core 774（682 + 审计写入吞吐压测 8 + 计划单轮转 29 + 同步暂存 55）、starter 341（237 + R4 用例 25 + 轮转 8 + 暂存 16 + 治理管理接口 50）、delivery 221（含页面契约 2 条）、agents 242（含花名册页面 1 条）；全仓静态扫描 `files=263 violations=0 warnings=0`。v1.11 起"经过治理链"是**前置条件**而不是约定（`GovernancePass` 一次性令牌），
-"绕过注解直调"在**构建期**即失败（`BypassScanMain`，零依赖）；v1.12 起 shell 类工具可以声明
-**命令模板**（`commandTemplate`），形状不符直接拒绝，不再靠黑名单猜危险；v1.13 起需要"先批计划再动手"的工具
-可以声明 `requiresPlanApproval`，未批准直接返回 `PLAN_APPROVAL_REQUIRED`，审批动作本身进审计链；v1.14 起计划单
-默认落盘回放，结构化计划只放行点名的工具；v1.15 起时间来源收敛为 `TimeProvider` 契约，
-Controller 不再为取 `now()` 注入业务 Service（构建期 `CP10-R4` 归零）；计划单文件支持
-按大小轮转归档（`towndemontower.plan-max-bytes`，默认关闭）；v1.16 起锚点副本推送失败的记录
-先落本地暂存区（`<audit-file>.spool`），由定时任务按"7 天 + 64 MiB"双阈值清理并向远端补传，
-成功即删、超次转 `dead/` 保留，完整数据不走暂存区。v1.17 起提供一组**只读 + 人工决策**的治理管理接口
-（`towndemontower.admin-api-enabled=true` 打开，复用 `metrics-token` 做 `X-Governance-Token` 鉴权）：
-审批单与执行计划可查可批、审计可查可校验、暂存区可观测可补传可清理；模式切换/权限授予/放行 R3
-等高风险能力**刻意不开放**（见 [docs/33-治理管理接口.md](docs/33-治理管理接口.md)）。
+## 先看这三份（日常只需这三份）
 
-## 链路总览
-
-| 阶段 | 角色 | 交付物 | 状态 |
-|------|------|--------|------|
-| 0 | PM | [docs/01-PM-需求说明.md](docs/01-PM-需求说明.md) | ✅ |
-| 1 | Arch | [docs/02-Arch-架构方案.md](docs/02-Arch-架构方案.md) | ✅ |
-| 2 | Dev | `towndemontower-core/src/...` 纯 Java 实现 + `DemoRunner` | ✅ |
-| 3 | QA | [docs/04-QA-测试用例与结果.md](docs/04-QA-测试用例与结果.md)（34/34 通过） | ✅ |
-| 4 | Ops | [docs/05-Ops-部署与运维上线.md](docs/05-Ops-部署与运维上线.md) + `towndemontower-core/pom.xml` | ✅ |
-
-## 设计基线（README v1.3 收敛）
-
-- **模型只提议，闸门硬裁决**：模型输出意图对象，风险分级/审批/执行/回滚由外部闸门承担。
-- **三层 AND**：业务态允许（状态机） + 动作允许（安全闸门 R0-R3） + 工具允许（AgentMode 白名单）。
-- **core 纯 Java、零 Spring**：`core` 内禁止 `import org.springframework.*`；契约语言中立（JSON、禁 Optional/CompletableFuture/Java 序列化）。
-- **R0 放行 / R1 轻确认 / R2 人工 / R3 默认拒绝**（带 --force 也不放行）。
-- **可审计、可快照、可回滚、可急停**：写前快照三样，审计追加写 + SHA-256 哈希链，急停取消在途 Tool 调用。
-- **编译/运行基线只有两档**：`core` / `gateway` = **Java 8**（class 52，JRE 8 实测可跑）；
-  `starter` / `delivery` / `agents` = **Java 17**（class 61，Spring Boot 3.2.5 的下限）。
-  **不要抬到 21 / 25**：Spring Boot 3.2.5 内嵌 ASM 读不了 class 69，应用会在扫描自动配置类时
-  `ClassFormatException` 起不来（本项目踩过）。
-- **基线可视化**：[docs/java-baseline.html](docs/java-baseline.html)（浏览器直接打开，不需要起服务）
-  按模块列出编译目标、字节码版本、实测所用 JDK 与断言数，附三条复核命令。
-
-## 最小链路（已运行验证）
-
-```
-IntentObject
-  → ModeToolPolicy（模式白名单）
-  → IntentFormat（格式 + 置信度）
-  → Schema / Capability
-  → Permission（RBAC）
-  → RiskGate（R0-R3 + AST + 复合取最高）
-  → ApprovalRequired（R2 挂人工）
-  → TaintCheck（污点写阻断）
-  → Snapshot（写前快照）
-  → SandboxedTool（沙箱执行）
-  → Audit（哈希链，任何结果都记录）
-```
-
-## 快速验证
-
-```bash
-cd towndemontower-core
-# core 的目标是 Java 8：编译必须显式 --release 8。
-# 省略它就会按本机 JDK 版本出字节码（用 JDK 21/25 直接 javac 会得到 class 65/69），
-# 产物在 JRE 8 上一律 UnsupportedClassVersionError——本项目踩过这个坑。
-javac --release 8 -encoding UTF-8 -d out $(find src/main/java src/test/java -name "*.java")
-java -cp out com.towndemontower.DemoRunner     # 演示最小链路（JRE 8 / JDK 17 均可跑）
-java -cp out com.towndemontower.core.CoreTest  # 验收 34/34
-
-# 或用 Maven（仓库没有根聚合 pom，因此用 -f 指定模块，不能用 -pl）
-mvn -q -f towndemontower-core/pom.xml test
-
-# 方向 C / M1 只读行为报告（离线 CLI，默认关闭，运行即一次显式启用）
-java -cp out com.towndemontower.core.analysis.AuditAnalyzerMain \
-     --file <audit.log> --out report.json --min-samples 5     # 不写审计，只出脱敏报告
-#     加 --normalize-aliases：按 contract/error-codes.json 归一别名后统计
-
-# 权威协议 / wire 结构一致性（零依赖，可直接当 CI 门禁）
-python contract/verify_codes.py                              # 结构与错误码口径 32/32
-java -cp out com.towndemontower.core.SkillResultWireTest     # 28/28（wire 结构 golden）
-
-# （历史）多语言 SDK 已归档，不再计入 CI；见 docs/38
-# cd ../towndemontower-sdk-python && python -m pytest -q        # 126 passed（历史基线）
-# cd ../towndemontower-sdk-typescript && npm test               # 111 passed（历史基线）
-```
-
-> `out/` 只是 `.gitignore` 里的本地编译输出（零 Maven 快速验证用），不要提交、不要拷进分发包。
-> 对外发布一律 `mvn clean package`，**`clean` 不能省**：增量编译会把旧 JDK 编出的高版本字节码留在
-> `target/classes` 里，`install` 之后会被原样装进本地仓库、再随 `lib/` 分发出去。
-> 验收办法只有一个：读 jar 内任一 class 的主版本号，core / gateway 必须是 52，Spring 三模块必须是 61。
-> `target/test-classes` 有同样的毛病：旧 JDK 编出来的测试类会让 `mvn test-compile` 认为"无需编译"，
-> 真跑测试时在 JDK 17 上直接 `UnsupportedClassVersionError`——看着像代码坏了，其实是没 clean。
-
-## 模块结构
-
-```
-towndemontower-core/src/main/java/com/towndemontower/core/
-├── contract/   IntentObject, Executor, SkillDescriptor, RiskLevel, ExecutionContext, ErrorCodes, ApprovalTicket
-├── statemachine/  TaskStatus/TaskEvent/TaskStateMachine
-├── mode/       AgentMode, ModeToolPolicy, ModeStateMachine（转换表）
-├── policy/     RiskGate, DefaultRiskGate, ShellAstAnalyzer（AST 静态分析）, CommandTemplate（命令模板）
-├── decorator/  装饰器链（ModeToolPolicy→...→Audit）+ GovernancePass（出口令牌，链尾发牌）
-├── audit/      AuditStore, HashChainAuditStore（SHA-256 哈希链）
-├── context/    PipelineState, PipelineStateStore（落盘/恢复）
-├── gate/       GateScript, GateScriptRunner（签名校验 + 重试）
-├── approval/   ApprovalPolicy, HumanApprovalPolicy, GuardianPrecheck（Guardian 仅预审）
-├── routing/    ModelRouter, SimpleModelRouter（快慢分离）
-├── executor/   ExecutorFactory, SkillRegistry, PermissionEngine, SnapshotService
-└── bypass/     CP-10 静态扫描（JavaSourceLexer / BypassScanner / BypassScanMain，零依赖）
-
-towndemontower-spring-starter/src/main/java/com/towndemontower/spring/
-├── AgentSkill.java            注解（切点定义）
-├── AgentSkillAspect.java      AOP 切面（桥接 Spring 方法 ↔ core 治理链）
-├── DelegatingSkillInvoker.java 链尾透传通道
-├── TownDemontowerAutoConfiguration.java  自动配置
-└── tx/                        事务一致性（Outbox + WS 推送）
-
-towndemontower-delivery/src/main/java/com/towndemontower/delivery/   （v1.3 交付进度看板）
-├── domain/     DeliveryItem, DeliveryStatus, DeliveryStatusResolver, DeliverySummary(+Calculator), Repository×3
-├── service/    DeliveryProgressService（纯 Java 领域服务，时钟可注入）
-├── governance/ DeliveryGovernanceFacade, DeliveryModeToolPolicy, DeliverySkillDescriptors
-├── web/        DeliveryController, DeliveryBoardPageController, View/Request/ExceptionHandler
-├── config/     DeliveryAutoConfiguration, DeliveryProperties
-└── DeliveryBoardApplication.java  可独立启动的演示入口
-
-towndemontower-agents/src/main/java/com/towndemontower/agents/       （v1.4 Agent 注册表）
-├── domain/     Agent, AgentRole, AgentStatus, ModelTier, RoleTemplate,
-│               AgentSummary(+Calculator), Repository×3, SkillCatalog, AccessProvisioner
-├── service/    AgentService（注册/改档/状态流转/删除/筛选/汇总，纯 Java）
-├── governance/ AgentGovernanceFacade（装饰器链 + 权限同步）,
-│               AgentsModeToolPolicy, AgentSkillDescriptors,
-│               CorePermissionProvisioner, RegistrySkillCatalog
-├── seed/       DefaultAgents（7 个演示 Agent）
-├── web/        AgentController, View/Request/SummaryView/ExceptionHandler + 花名册页面入口
-├── config/     AgentsAutoConfiguration, AgentsOpenApiConfiguration, AgentsProperties
-└── AgentsApplication.java         可独立启动的演示入口（8081）
-
-towndemontower-gateway/                       （网关形态，可运行；见 docs/39）
-├── POST /api/evaluate   独立运行的裁决服务（JDK 内置 HttpServer，无 Spring；thin jar + lib/）
-├── GET  /console        裁决控制台页面（单文件 HTML，令牌在页面里填）
-├── python/              @inkarmor_guard 薄客户端（标准库，零依赖）
-└── Dockerfile           镜像定义（按 thin jar 结构改写，未实测）
-
-towndemontower-sdk-python/                    ⚠️ 已归档（v2.0，126 passed 历史基线），不再维护
-├── src/towndemontower/  contract / executor / policy / audit / decorator / client / rest
-└── tests/               7 个测试文件（pytest）
-
-towndemontower-sdk-typescript/               ⚠️ 已归档（v2.0，111 passed 历史基线），不再维护
-├── src/                 contract / executor / policy / audit / decorator / client / rest / index
-├── tests/               8 个测试文件（jest）
-├── examples/            basic / advanced / rest 三个可运行示例
-└── package.json         npm run build / test
-
-（任意语言客户端：网关形态下不发布 SDK，只给 HTTP 示例；Python 薄包 `@inkarmor_guard` ≤200 行见 docs/38）
-```
-
-## 排期与进度
-
-- **v1.0 ✅** Phase 0 core 骨架 + v1.3 契约最小链路（纯 Java，34/34 单测）。见 `docs/01~05`。
-- **v1.1 ✅** Phase 1 Spring 薄适配层（@AgentSkill + AOP + 自动配置，5/5 验证）。见 `docs/06-Phase1-适配层设计.md`、`docs/07-Phase1-伪代码实现.md`。
-- **v1.2 ✅（首批）** Runtime & Infra 增强：取消令牌、文件状态持久化、凭据代理、AST 管道/子 shell 增强、进程级沙箱策略、门禁重试验证。22/22 功能测试通过，34/34 无回归。见 `docs/09-Phase1.2-实现.md`。
-- **v1.2.1 ✅（首批）** Docker 容器级沙箱：`DockerSandboxStrategy`/`DockerSandboxExecutor`（替换 `ProcessSandboxStrategy`，装饰器链零改动，`buildDockerArgs` 隔离基线校验 + 不可用优雅降级）。14/14 单测通过，22/22 与 34/34 无回归。见 `docs/10-Phase1.2.1-Docker沙箱实现.md`。
-- **v1.2.1 ✅（首批续）** starter 事务一致性：`@Transactional` 治理决策落库 + Outbox 表 + 提交后事件经 WS 总线推送，定时轮询兜底崩溃恢复/重试。新增 `tx` 包与 `TownDemontowerTxTest` 14/14 通过，`StarterDemo` 5/5 无回归。见 `docs/11-Phase1.2.1-事务一致性实现.md`。
-- **v1.2.1 📋** 仍排后：审批网关真实接入（用户/IM/CLI/转人工终端）。
-- **v1.3 ✅（首批）** 交付进度看板模块 `towndemontower-delivery`：交付项全字段管理（阶段/负责人/计划起止/实际完成/进度百分比/状态）、新增更新删除、按状态筛选、整体进度自动汇总；**状态为推导字段**（到期即自动"已延期"，无需定时任务）+ 人工覆盖通道；写操作接入 core 治理链（共享审计哈希链）；**看板默认呈现本产品自身的 13 条真实交付里程碑**（时间取自仓库真实时间戳）；**集成 OpenAPI 3 + Swagger UI 在线接口文档**（零 CDN，离线可用）。领域层 79/79 + 路线图 43/43 + Web 层 56/56 + OpenAPI 契约 41/41，全仓回归 308/308。见 `docs/12-Phase1.3-交付进度看板.md`。
-- **v1.3 📋** 仍排后：War Room 面板、审计看板、质量指标看板、急停控制台、配置档位。
-- **v1.6 ✅** 默认配置即安全：**权限不再自动授予**（`auto-grant-declared-perms` 默认 `false`，改用 `permissions-bootstrap` 或注册表显式下发）；**关闭治理 = 全部拒绝**（`RejectAllExecutor`，不再"不装配即放行"）；**审计默认落盘**（`FileAuditStore`：追加写、分段、启动逐段校验，被篡改则拒绝启动）；**审批与状态默认落盘**；**启动自检**（`GovernanceIntegrityChecker`：CRITICAL 配置拒绝启动，WARN 记入审计）；**输入校验**（长度/控制字符/路径穿越/参数个数，`INPUT_REJECTED`）；**错误信息脱敏**（内部错误不回显细节）；**观测端点需令牌**（`X-Governance-Token`）。core 143 + starter 71 + delivery 219 + agents 201 = **634/634**。见 `docs/20-默认安全配置说明.md`。
-- **v1.5 ✅** 设施层补齐（把 `docs/19` 指出的五个"类写了但没接上"的断点接上）：**模式只能由状态机推进**（`GovernedModeSession`，切面不再接受调用方指定的 mode，改配置只留痕 `MODE_OVERRIDE_IGNORED`）；**流水线状态真实落盘**（`AuditDecorator` 每次裁决后写 `PipelineState`，内存/文件可切换）；**写前快照改为真副本 + 可恢复**（`SnapshotService.restore()`：原文件还原，原不存在的文件删除）；**门禁签名改 HMAC-SHA256**（密钥走环境变量，内置开发密钥会在自检里被标为 `GATE_DEV_KEY`）；**审批中心**（`ApprovalCenter`：可查询、禁自批、超时即拒、可落盘，R2 的批准权在机制层钉住，只有显式实现 `TrustedApprovalPolicy` 才能自动批准）；**指标层**（`GovernanceMetrics` + 默认关闭的 `/towndemontower/metrics`、`/towndemontower/integrity`）；**上下文与提示词**（`ContextBuilder` + `ModePrompts`：前缀稳定可缓存、工具清单即模式白名单、不写免责声明）。core 123 + starter 50 + delivery 219 + agents 201 = **593/593**。
-- **v1.4 ✅** Agent 注册表模块 `towndemontower-agents`：把治理链里的 `agentId` 从**裸字符串**变成**有档案的注册对象**——ID（`AGT-0001`，即 `agentId`）、名称、角色（PM/ARCH/DEV/QA/OPS）、注册时间、备注、可用技能、权限、模型档位；状态 `ACTIVE/PAUSED/SUSPENDED/RETIRED` 决定"能否执行"与"是否保留权限"。**档案是 RBAC 的权威来源**：注册/改档授予（覆盖式）、停用/注销立即整员回收，接口同时返回应然 `permissions` 与实然 `effectivePermissions`；技能必须在 core 工具注册表中存在；角色带默认技能/权限模板。**本期不做团队、不提供页面**（仅 REST + OpenAPI）。领域 78 + 权限 50 + 端到端 73 = 201。见 `docs/13-Phase1.4-Agent注册表.md`。快速上手见 `docs/00-快速上手.md`。
-- **v1.4 📋** 仍排后：团队 / 部门与权限继承、任务派发与多 Agent 协作、审批网关真实接入。
-- **v1.7 ✅** 过渡宽限与门禁密钥：存量代码有显式宽限窗口（每次放行留痕），门禁签名密钥不再内置。见 `docs/21-过渡宽限与门禁密钥.md`。
-- **v1.8 ✅** REST 调用者认证：`ApiAuthFilter`，未认证请求进不了治理链。见 `docs/22-REST调用者认证.md`。
-- **v1.9 ✅** 授权收口与审计加固：权限改为显式下发 + 审计记录 HMAC 防篡改。见 `docs/23-授权收口与审计加固.md`。
-- **v1.9.1 ✅** 凭据与 Agent 绑定：调用凭据必须绑定到 `ACTIVE` 的 Agent，停用即失效。见 `docs/24-凭据与Agent绑定.md`。
-- **v1.9.2 ✅** 审计写入收权与锚点追平：只有审计器能写审计，锚点与日志逐段对齐。见 `docs/25-审计写入收权与锚点追平.md`。
-- **v1.10 ✅** 锚点副本与回滚检出：锚点另存副本，日志被截断/回滚可被检出。全仓回归 **1180/1180**。见 `docs/26-锚点副本与回滚检出.md`。
-- **v1.11 ✅** 绕过治理令牌与静态扫描：`GovernancePass` 一次性令牌（默认 deny，`UNGOVERNED_INVOCATION` 恒应为 0）+ 零依赖 `BypassScanMain`（规则 R1-R4，可输出 SonarQube 通用问题报告）。全仓回归 **1249/1249**。见 `docs/29-绕过治理令牌与静态扫描.md`。
-- **v1.12 ✅** 命令模板化（I5）：工具用 `commandTemplate` 声明"只允许这种形状的命令"——字面量位置固定、参数只能落在 `{...}` 槽位、不允许多余词、参数值禁控制符、单值槽位禁 `-` 开头；不符即 `COMMAND_TEMPLATE_MISMATCH`。**AST 仍作第二道**（宽模板 + `rm -rf /` 照旧升 R3）。全仓回归 **1298/1298**。见 `docs/30-命令模板化.md`。
-- **v1.12.1 ✅** 扫描器补 `CP10-R5`（模板过宽）：`commandTemplate` 里没有任何固定词（如 `{cmd*}`）时告警——否则"我配了模板"会变成自我安慰。WARN 级、可显式豁免、`--strict` 下阻断。全仓回归 **1304/1304**。
-- **v1.13 ✅** Plan-and-Execute 入口：`@AgentSkill(requiresPlanApproval = true)` → `PlanApprovalService` 按 (agent, task) 提交/审批计划，闸门前置在风险分级之前；禁自批、否决不可补批、未装配服务 fail-closed；`PLAN_REQUESTED/APPROVED/REJECTED` 进同一审计哈希链（摘要不入链）。全仓回归 **1336/1336**。见 `docs/31-执行计划审批.md`。
-- **v1.14 ✅** 计划可回放 + 结构化 PlanArtifact：计划单默认追加落盘到 `<state-dir>/plans.log`，重启后回放，单号序号接着历史继续；`PlanStep` 让计划点名工具，闸门收窄为"只放行计划覆盖的工具"（旧格式计划仍按任务级放行）；文件损坏拒绝启动；扩大范围走显式 `revise(...)` 重新审批。全仓回归 **1379/1379**。见 `docs/32-计划回放与结构化.md`。
-- **v1.17 ✅** 治理管理接口（后端）：14 个端点覆盖 R3 人工审批、执行计划审批、审计查询/校验、同步暂存区运维；
-  开关默认关闭，复用 `metrics-token` 做 `X-Governance-Token` 鉴权；模式切换/权限授予/放行 R3 等**不开放**。
-  全仓回归 **1575/1575**，扫描 `files=263 violations=0 warnings=0`。见 `docs/33-治理管理接口.md`。
-- **v2.0 🚧（形态重定义，2026-11-12）** 产品形态从「多语言各写一套治理实现」改为「**一份 Java 裁决服务 + 一份 JSON 协议**」：网关形态（`POST /api/evaluate`）+ ≤200 行 Python 薄包 `@inkarmor_guard`，其余语言只给 HTTP 示例、不维护 SDK。原 Python/TypeScript SDK（126/111 历史基线）已归档不再维护。范围基线见 `docs/38-网关形态改造范围.md`。
-  **已可运行**：网关服务、Python 薄包、协议 golden 均已落地并在本地实测（分级、鉴权、审计落盘；接入见 `docs/39-网关接入指南.md`）。
-  **已补齐**：入口层拒绝（鉴权失败、非法 JSON、请求体超限等）也写审计；新增 `GET /api/health` 探活（不写审计）；白名单与注册表对齐；审计行格式统一。
-  **尚未完成**：R2 审批单无查询/批准端点，进程重启即丢（需先拍板是否新增端点）；并发只排队不限流；镜像未验证。逐项列在 `docs/39` §8。
-
-完整任务清单见 `docs/08-版本任务清单.md`。
-
-## 未来发展方向（2026-11-12 已拍板并排期）
-
-> 来自外部评审观点，**不承诺版本、不进验收基线**；四条线彼此独立、可分别推进，且都不改「模式状态机 / 显式授权 / 审计链只追加」三处基线。
-> 逐条的现状对照与取舍见 [docs/08-版本任务清单.md](docs/08-版本任务清单.md)「未来发展方向」。
-
-| 方向 | 内容 | 状态 |
+| 你的目的 | 读哪份 | 它回答什么 |
 |---|---|---|
-| A · 治理引擎可靠性 | 网关形态下优先级上升：裁决链内部异常转明确拒绝响应、网关启动自检、健康检查与探活告警、Fail-closed 对外承诺 | 🗓 已排期 |
-| B · 上下文与数据安全 | 请求级留证快照（网关不执行，无业务态可回滚）、提示词哨兵、一键红队演练 | 🗓 已排期 |
-| C · 审计驱动的动态防御 | **只读行为报告已实现**（[docs/36-方向C-需求说明.md](docs/36-方向C-需求说明.md) §12）：默认关闭、离线 CLI、只认 Java 规范码、脱敏、链校验前置；**降权建议单已批准并排期**（作用域「仅已接入网关的请求」），需架构设计先行；**后台自动收紧明确不做**。冲突与方案见 `docs/08` §C | 🗓 建议单待架构设计 |
-| **网关形态（新）** | 一份 Java 裁决服务 + 一份 JSON 协议 + ≤200 行 Python 薄包，其余语言只给 HTTP 示例、不维护 SDK；范围基线见 [docs/38-网关形态改造范围.md](docs/38-网关形态改造范围.md)，接入与局限见 [docs/39-网关接入指南.md](docs/39-网关接入指南.md) | 🚧 服务可运行、审计覆盖入口层；审批单闭环与限流、镜像验证待补 |
+| 判断要不要用 | [产品定位与工程思想.md](docs/产品定位与工程思想.md) | 定位、设计取舍、管得到哪里、管不到哪里 |
+| 想直接用 | [网关接入指南.md](docs/网关接入指南.md) | 怎么接、怎么发意图、尚不支持什么 |
+| 想知道做到哪 | [排期与拍板.md](docs/排期与拍板.md) | 拍板了什么、排了什么、哪些作废 |
 
-## 构建期自检（v1.11）
+## 事实的权威出处（只在一处维护，别处只引用）
 
-检查"绕过注解直调、注解标错位置、方法体偷偷做副作用、Controller 直调 Service、命令模板过宽"五类问题。
-零依赖、纯 JDK，可直接当门禁用（本仓库不含 CI 配置，接入方式自定）：
-
-```bash
-cd towndemontower-core
-javac -encoding UTF-8 -d out $(find src/main/java src/test/java -name "*.java")
-java -cp out com.towndemontower.core.bypass.BypassScanMain --root ..            # 0=通过 1=违规 2=用法/IO 错
-java -cp out com.towndemontower.core.bypass.BypassScanMain --root .. --strict --report target/bypass.json
-```
-
-`--report` 产出的 JSON 可直接挂到 SonarQube 的 `sonar.externalIssuesReportPaths`（无需插件）。
-豁免写在方法上方注释行首：`// towndemontower:allow CP10-R2 reason=<非空理由>`，缺理由本身算违规。
-
-## 快速体验交付看板（v1.3）
-
-```bash
-# 1) 先安装依赖模块到本地仓库（离线环境）
-cd towndemontower-core && mvn -o -Dmaven.test.skip=true install
-cd ../towndemontower-spring-starter && mvn -o -Dmaven.test.skip=true install
-
-# 2) 启动看板（demo profile：8080 端口 + 自动播种本产品真实路线图）
-cd ../towndemontower-delivery
-mvn -o spring-boot:run -Dspring-boot.run.profiles=demo
-#   或打包后运行
-mvn -o -DskipTests package
-java -jar target/towndemontower-delivery-0.1.0.jar --spring.profiles.active=demo
-```
-
-打开 <http://127.0.0.1:8080/delivery/> 即可看到交付进度看板；
-REST 接口在 `/api/delivery/**`（`items` / `summary` / `meta`）。
-
-## 三个页面的入口
-
-| 页面 | 地址 | 起服务的方式 |
-|---|---|---|
-| 交付看板 + 治理管理 | <http://127.0.0.1:8080/delivery/> | delivery，demo profile（上面那段） |
-| └ 指标体检（子页签） | 同上 → 「治理管理」→「指标体检」 | 额外加 `--towndemontower.metrics-endpoint=true --towndemontower.metrics-token=<非空令牌>`；与 `admin-api-enabled` 是两个独立开关 |
-| Agent 花名册 | <http://127.0.0.1:8081/agents/> | agents，demo profile（8081 端口） |
-| 裁决控制台 | <http://127.0.0.1:8080/console> | gateway（`INKARMOR_API_TOKEN` 已配），令牌在页面里填 |
-
-三页都是**单文件 HTML**：内联 CSS/JS、不引 CDN、不加构建步骤，断网也能开。
-花名册与看板**只读**——状态流转、审批、计划这些写操作仍走 REST + 治理链，不在页面上做，
-否则等于给治理留了个绕过口。
-
-**接口文档（启动后可直接访问）**
-
-| 地址 | 内容 |
+| 事实类型 | 唯一出处 |
 |---|---|
-| <http://127.0.0.1:8080/swagger-ui.html> | Swagger UI 可交互文档（Try it out 可直接发真实请求） |
-| <http://127.0.0.1:8080/v3/api-docs> | OpenAPI 3 JSON 契约（可导入 Postman / Apifox / 客户端生成器） |
-| <http://127.0.0.1:8080/v3/api-docs.yaml> | 同一契约的 YAML 形式 |
-| `docs/12-Phase1.3-交付进度看板.md` §3.3 | Markdown 版的 REST 契约表（离线可读） |
+| 定位 / 边界 / 工程思想 | `docs/产品定位与工程思想.md` |
+| 网关状态与未完成项 | `docs/网关接入指南.md` |
+| 排期 / 拍板 / 作废项 | `docs/排期与拍板.md` |
+| 测试基线与验收数字 | `docs/测试清单.md` |
+| 架构与机制 | `docs/架构方案.md` |
+| 实现记录 | `docs/实现记录.md` |
+| 部署 / 运维 / 界面 | `docs/部署与运维.md` |
+| 权威协议（IntentObject / 错误码 / 网关 golden） | `contract/` |
 
-Swagger UI 的静态资源由本地 `webjar` 提供，**零 CDN 依赖**，完全离线可用。
+## 两种接入形态
 
-**看板呈现的是本产品自己的制作进度**：13 条真实里程碑
-（6 已完成 / 1 已延期 / 1 进行中 / 5 未开始），整体进度 49%、完成率 46%，
-每个版本里程碑的时间都取自仓库真实时间戳。
-需要通用样例数据时加 `--towndemontower.delivery.seed-mode=sample`。
+- **网关（推荐，任意语言）**：`towndemontower-gateway/` 暴露 `POST /api/evaluate`；只裁决、不执行。接入与尚不支持项见 `docs/网关接入指南.md`。
+- **嵌入式（Java / Spring Boot）**：加 starter 依赖 + `@AgentSkill` + 方法首行 `GovernancePass.require(...)`；最小可用版见 `docs/网关接入指南.md` 嵌入式章节。
 
-> 演示配置放在 `application-demo.properties`，**不会污染接入方应用自己的 `application.properties`**；
-> 不激活 profile 时模块以"空看板"启动（`demo-data=false`，不占用 8080 默认端口以外的行为）。
+## 模块一览（结构速查，不含状态）
 
-## 快速体验 Agent 注册表（v1.4）
+| 目录 | 职责 |
+|---|---|
+| `towndemontower-core/` | 纯 Java 治理内核：10 环节固定链、审计哈希链、快照、审批、`BypassScanMain` 构建期扫描 |
+| `towndemontower-spring-starter/` | Spring 薄适配层：`@AgentSkill`、AOP 切面、自动配置、事务一致性（Outbox） |
+| `towndemontower-delivery/` | 交付进度看板（:8080，含治理管理页） |
+| `towndemontower-agents/` | Agent 注册表（:8081，REST + 花名册页） |
+| `towndemontower-gateway/` | 独立裁决网关（`POST /api/evaluate`、`GET /api/health`、`GET /console`、Python 薄包、Dockerfile） |
+| `contract/` | 权威 JSON 协议与校验脚本 |
+| `towndemontower-sdk-python/`、`towndemontower-sdk-typescript/` | ⚠️ 已归档（历史基线，见 `ARCHIVED.md`），不再维护 |
 
-```bash
-# 1) 依赖模块（core 有改动时务必重装）
-cd towndemontower-core && mvn -o -Dmaven.test.skip=true install
-cd ../towndemontower-spring-starter && mvn -o -Dmaven.test.skip=true install
-
-# 2) 启动注册表（demo profile：8081 + 播种 7 个演示 Agent）
-cd ../towndemontower-agents
-mvn -o spring-boot:run -Dspring-boot.run.profiles=demo
-#   或
-java -jar target/towndemontower-agents-0.1.0.jar --spring.profiles.active=demo
-```
-
-**本模块只提供 REST 接口，不提供页面**：
-
-- 接口：`/api/agents`（列表/注册）、`/api/agents/{id}`（详情/改档/删除）、
-  `/api/agents/{id}/status`（状态流转）、`/api/agents/summary`、`/api/agents/meta`
-- 接口文档：<http://127.0.0.1:8081/swagger-ui.html> ｜ `/v3/api-docs`
+## 快速验证（命令见各权威文档）
 
 ```bash
-# 汇总：7 个 / ACTIVE 4 / 可执行 4 / 权限覆盖率 100%
-curl -s http://127.0.0.1:8081/api/agents/summary
+# core：编译目标 Java 8，clean 不能省；完整命令与理由见 docs/测试清单.md
+cd towndemontower-core
+javac --release 8 -encoding UTF-8 -d out $(find src/main/java src/test/java -name "*.java")
+java -cp out com.towndemontower.DemoRunner
+java -cp out com.towndemontower.core.CoreTest
 
-# 停用与已注销的实然权限为空、档案权限仍在（应然 vs 实然）
-curl -s "http://127.0.0.1:8081/api/agents?status=SUSPENDED"
+# 协议门禁：python contract/verify_codes.py
+# 网关接入与启动：docs/网关接入指南.md
+# 全仓基线数字与回归口径：docs/测试清单.md
 ```
 
-**核心闭环**：注册/改档 → 权限按档案授予 core RBAC；停用/注销 → 立即整员回收。
-所有写操作经治理链（风险闸门 + RBAC + 快照 + 审计哈希链）。
+## 页面入口（起服务方式见各模块文档）
 
-> 端口被 `SERVER__PORT` 环境变量占用时，用 `--server.port=8081` 显式覆盖。
-> 完整交付说明（PM→Arch→Dev→QA→Ops、REST 契约、状态机、权限闭环）见
-> `docs/13-Phase1.4-Agent注册表.md`。
+| 页面 | 地址 | 所属模块 |
+|---|---|---|
+| 交付看板 + 治理管理 | `http://127.0.0.1:8080/delivery/` | delivery（demo profile） |
+| Agent 花名册 | `http://127.0.0.1:8081/agents/` | agents（demo profile） |
+| 裁决控制台 | `http://127.0.0.1:8080/console` | gateway（需配 `INKARMOR_API_TOKEN`） |
+| Swagger UI / OpenAPI 3 | `http://127.0.0.1:8080/swagger-ui.html` ｜ `/v3/api-docs` | delivery，启动后可用 |
+
+## 文档列表（共 7 份，按需查）
+
+| 文档 | 回答什么 |
+|---|---|
+| `docs/产品定位与工程思想.md` | 定位、边界、工程思想、可编排设计（未实现） |
+| `docs/网关接入指南.md` | 网关怎么接、分级行为、尚不支持项、嵌入式最小可用版 |
+| `docs/排期与拍板.md` | 拍板结论、批次顺序、接入方边界、方向 C 取舍 |
+| `docs/架构方案.md` | 分层、固定 10 环节链、防绕过、关键机制、构建期扫描 |
+| `docs/实现记录.md` | 按版本记「做了什么能力、关键约束」 |
+| `docs/测试清单.md` | 测试基线、QA 方法、运行方式、实测结论 |
+| `docs/部署与运维.md` | 构建分发、治理管理接口、UI、页面入口、运维边界 |
+
+> 旧编号文档已合并删除，历史版本可在 git 中查阅（`git log -- docs/`）。`contract/` 是协议不是文档，保留。

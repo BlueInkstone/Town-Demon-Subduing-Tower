@@ -23,7 +23,7 @@ import java.util.concurrent.ConcurrentHashMap;
  * 永久有效的权限，等于把最小权限原则架空。因此端口同时提供精确回收与整员回收。</p>
  *
  * <p><b>边界</b>：这是进程内的编译期收口，不是内核强制。反射仍可绕过
- * （见 {@code docs/17-强制力与绕过面分析.md}）；它挡住的是"顺手调一下"的误用与
+ * （见 {@code docs/产品定位与工程思想.md}）；它挡住的是"顺手调一下"的误用与
  * "拿到 Bean 就能提权"的默认路径，挡不住蓄意越权。</p>
  */
 public class PermissionEngine {

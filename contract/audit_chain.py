@@ -10,7 +10,7 @@
     python contract/audit_chain.py --emit     # 输出 golden 向量（JSON）
     python contract/audit_chain.py --verify  # 自检：算例 + golden + 三语言绑定覆盖
 
-设计取舍（详见 docs/37-审计链统一迁移方案.md）：
+设计取舍（详见 docs/网关接入指南.md）：
   * 摘要公式沿用 Java 既有 `seq|action|payload|prevHash` —— Java 侧加固、外锚、
     行为分析器都已绑定这个算式，改它等于推倒已交付能力。
   * payload 统一为 UTF-8 **字符串**；结构化负载由写入方按规范化 JSON 序列化。
